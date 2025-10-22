@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'screens/game_selection_screen.dart';
+import 'screens/video_splash_screen.dart';
+import 'screens/initial_splash_screen.dart'; // NEUER IMPORT
 import 'games/simple_dice_game.dart';
 import 'games/schocken_game.dart';
 import 'games/four_two_eighteen_game.dart';
 
-// Enum zur Verwaltung des Spielzustands
+// Enum zur Verwaltung des Spielzustands (ERWEITERT)
 enum GameMode {
+  initialSplash, // NEUER STARTZUSTAND
   selection,
+  videoSplash,
   simpleDiceGame,
   schocken,
   fourTwoEighteen,
+  maexchen
 }
 
 class DiceGameApp extends StatelessWidget {
@@ -23,16 +28,16 @@ class DiceGameApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: const ColorScheme.dark(
           primary: Colors.white,
-          secondary: Color(0xFF1E1E1E), // Weiß als Akzent
+          secondary: Color(0xFF1E1E1E),
           surface: Color(0xFF1E1E1E),
-          background: Color(0xFFEB3B2C), // Kräftiges Rot als Hintergrund
+          background: Color(0xFFEB3B2C),
         ),
-        scaffoldBackgroundColor: const Color(0xFFEB3B2C), // Rot als Hintergrund
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFEB3B2C), // App Bar auch Rot
+        scaffoldBackgroundColor: const Color(0xFFEB3B2C),
+        appBarTheme: const AppBarTheme( // AppBar wird hier nicht mehr genutzt, könnte entfernt werden
+          backgroundColor: Color(0xFFEB3B2C),
           foregroundColor: Colors.white,
           elevation: 0,
-          centerTitle: true, // Zentrierte Titel
+          centerTitle: true,
           titleTextStyle: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.w900,
@@ -54,14 +59,24 @@ class GameWrapperScreen extends StatefulWidget {
 }
 
 class _GameWrapperScreenState extends State<GameWrapperScreen> {
-  GameMode _currentGameMode = GameMode.selection;
+  // Startet jetzt mit dem InitialSplashScreen
+  GameMode _currentGameMode = GameMode.initialSplash;
+  GameMode? _selectedGameAfterSplash;
   List<String> _players = ['Spieler 1', 'Spieler 2']; // Lokale Spieler
 
   void _selectGame(GameMode mode) {
     setState(() {
-      _currentGameMode = mode;
+      _selectedGameAfterSplash = mode;
+      _currentGameMode = GameMode.videoSplash;
     });
   }
+
+  void _goToSelection() {
+    setState(() {
+      _currentGameMode = GameMode.selection;
+    });
+  }
+
 
   void _exitGame() {
     setState(() {
@@ -72,48 +87,54 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
   @override
   Widget build(BuildContext context) {
     Widget currentScreen;
-    String title;
 
     switch (_currentGameMode) {
+    // --- NEUER CASE FÜR DEN ERSTEN SPLASH ---
+      case GameMode.initialSplash:
+        currentScreen = InitialSplashScreen(
+          onFinished: _goToSelection, // Geht danach zur Auswahl
+        );
+        break;
+    // --- Bestehende Cases ---
+      case GameMode.videoSplash:
+        currentScreen = VideoSplashScreen(
+          onVideoFinished: () {
+            setState(() {
+              _currentGameMode = _selectedGameAfterSplash ?? GameMode.selection;
+              _selectedGameAfterSplash = null;
+            });
+          },
+        );
+        break;
       case GameMode.simpleDiceGame:
-        title = 'WÜRFELN';
         currentScreen = SimpleDiceGameWidget(
           players: _players,
           onGameExit: _exitGame,
         );
         break;
       case GameMode.schocken:
-        title = 'SCHOCKEN';
         currentScreen = SchockenGameWidget(
           playerNames: _players,
           onGameQuit: _exitGame,
         );
         break;
       case GameMode.fourTwoEighteen:
-        title = '42 / 18';
         currentScreen = FourTwoEighteenGameWidget(
           players: _players,
           onGameExit: _exitGame,
         );
         break;
+      case GameMode.maexchen:
+      // Hier dein Mäxchen-Widget einfügen
+        currentScreen = GameSelectionScreen(onGameSelected: _selectGame);
+        break;
       case GameMode.selection:
       default:
-        title = 'WÜRFELN';
         currentScreen = GameSelectionScreen(onGameSelected: _selectGame);
         break;
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        automaticallyImplyLeading: _currentGameMode != GameMode.selection,
-        leading: _currentGameMode != GameMode.selection
-            ? IconButton(
-          icon: const Icon(Icons.arrow_back, size: 30),
-          onPressed: _exitGame
-        )
-            : null,
-      ),
       body: Center(child: currentScreen),
     );
   }
@@ -122,3 +143,4 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
 void main() {
   runApp(const DiceGameApp());
 }
+

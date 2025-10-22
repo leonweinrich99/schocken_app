@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../main.dart'; // Stellt sicher, dass die GameMode-Enum hier definiert ist.
+import '../widgets/dice_display.dart'; // Importieren, um Asset-Pfade zu nutzen
 
 class GameSelectionScreen extends StatelessWidget {
   final Function(GameMode) onGameSelected;
@@ -11,7 +12,7 @@ class GameSelectionScreen extends StatelessWidget {
     return Center(
       child: Container(
         padding: const EdgeInsets.all(20),
-        constraints: const BoxConstraints(maxWidth: 400),
+        constraints: const BoxConstraints(maxWidth: 475),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -45,7 +46,7 @@ class GameSelectionScreen extends StatelessWidget {
             _buildGameButton(
               context,
               title: 'MÄXCHEN',
-              mode: GameMode.simpleDiceGame, // Angenommen, es gibt diesen Modus
+              mode: GameMode.maexchen, // Angenommen, es gibt diesen Modus
               diceValue: 3,
             ),
             // --- Platzhalter-Buttons ---
@@ -81,20 +82,20 @@ class GameSelectionScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Material(
-        color: isDisabled ? Colors.black.withOpacity(0.5) : Colors.black,
+        color: isDisabled ? Color(0xFF1E1E1E) : Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(
-          side: const BorderSide(color: Colors.white, width: 3),
-          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: Colors.black, width: 0),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: InkWell(
           onTap: isDisabled || mode == null ? null : () => onGameSelected(mode),
           borderRadius: BorderRadius.circular(6),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
             child: Row(
               children: [
-                // Würfel-Icon
-                _buildDiceIcon(diceValue),
+                // Würfel-Icon (jetzt mit Bild)
+                _buildDiceImage(diceValue), // Geändert zu _buildDiceImage
                 const SizedBox(width: 20),
                 // Spiel-Titel
                 if (title != null)
@@ -114,44 +115,30 @@ class GameSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// Baut ein einfaches, gezeichnetes Würfel-Icon, das zum Design passt
-  Widget _buildDiceIcon(int value) {
-    // Die Position der Punkte in einem 3x3 Gitter
-    final positions = [
-      [4], // 1
-      [0, 8], // 2
-      [0, 4, 8], // 3
-      [0, 2, 6, 8], // 4
-      [0, 2, 4, 6, 8], // 5
-      [0, 2, 3, 5, 6, 8], // 6
-    ];
+  /// Baut ein Würfel-Bild-Widget (ähnlich wie im InitialSplashScreen)
+  Widget _buildDiceImage(int value) {
+    const double diceSize = 100.0; // Feste Größe für diesen Screen
 
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(6),
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
-        itemCount: 9,
-        itemBuilder: (context, index) {
-          bool isDotVisible = (value >= 1 && value <= 6) ? positions[value - 1].contains(index) : false;
-          return Container(
-            decoration: BoxDecoration(
-              color: isDotVisible ? Colors.black : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-          );
+    // Stellt sicher, dass der Wert gültig ist
+    if (value < 1 || value > 6) {
+      return Container(width: diceSize, height: diceSize, color: Colors.grey); // Fallback
+    }
+
+    // Direkte Verwendung von Image.asset
+    return SizedBox(
+      width: diceSize,
+      // Höhe basierend auf dem Aspektverhältnis der Würfelbilder anpassen
+      // Annahme: Das Verhältnis ist 111/164 (Höhe/Breite)
+      height: diceSize * (111 / 164),
+      child: Image.asset(
+        DiceAssetPaths.diceUrls[value - 1], // Greift auf die Pfade in dice_display.dart zu
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback, wenn das Asset nicht geladen werden kann
+          return Container(width: diceSize, height: diceSize * (111 / 164), color: Colors.black, child: Center(child: Text(value.toString(), style: TextStyle(color: Colors.white))));
         },
       ),
     );
   }
 }
+
