@@ -57,7 +57,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   void dispose() {
     _game.removeListener(_onGameStateChanged); // Listener entfernen
     _animationController.dispose();
-    // _game.dispose(); // Wichtig, falls SchockenGame Ressourcen verwendet (aktuell nicht)
+    _game.dispose(); // ChangeNotifier sollte disposed werden
     super.dispose();
   }
 
@@ -116,26 +116,13 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
               children: [
                 // 1. HEADER mit Info-Button
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 30.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       // Titel
                       const Center(
-                        child: Text(
-                            'SCHOCKEN',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 42,
-                              fontWeight: FontWeight.w900,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black, // Farbe des Schattens mit Deckkraft
-                                  offset: Offset(6, 0),                // Horizontale (dx) und vertikale (dy) Verschiebung
-                                  blurRadius: 0,                       // Weichzeichner-Radius
-                                ),
-                              ],
-                              )),
+                        child: Text('SCHOCKEN', style: TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w900)),
                       ),
                       // Zurück-Button
                       Align(
@@ -176,11 +163,15 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                 ),
                 // 3. BUTTON-BEREICH
                 _buildButtonArea(),
-                // 4. SCOREBOARD (Jetzt mit weißem Hintergrund und Schatten)
-                Padding( // Padding hinzugefügt, um Abstand nach unten zu schaffen
-                  padding: const EdgeInsets.only(bottom: 30.0), // Abstand nach unten
-                  child: _buildScoreboardContainer(), // Wrapper-Container für Styling
-                ),
+                // 4. SCOREBOARD (Jetzt konditional angezeigt)
+                // Wird nur angezeigt, wenn Ergebnisse NICHT angezeigt werden ODER Animation läuft
+                if (!_game.areResultsCalculated && !_isRevealSequenceRunning)
+                  SingleChildScrollView( // Erlaubt Scrollen, falls nötig
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 20.0), // Abstand nach unten
+                      child: _buildScoreboardContainer(), // Wrapper-Container für Styling
+                    ),
+                  ),
 
               ],
             ),
@@ -219,12 +210,12 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
 
     // Stil für den Text unter den Bildern
-    const indicatorTextStyle = TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w900); // Schriftgröße angepasst
+    const indicatorTextStyle = TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold); // Schriftgröße angepasst
     const double indicatorSize = 70.0; // Größe der Indikator-Boxen
 
 
     return Positioned(
-        top: 100, // Abstand vom oberen Rand (unter dem Header) - Anpassen nach Bedarf
+        top: 80, // Abstand vom oberen Rand (unter dem Header) - Anpassen nach Bedarf
         right: 20,  // Abstand vom RECHTEN Rand
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -322,7 +313,16 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
   Widget _buildButtonArea() {
     const buttonPadding = EdgeInsets.only(bottom: 24.0, top: 10.0); // Padding angepasst
-    // Ergebnistext wird jetzt in _buildResultDisplay angezeigt
+    final resultStyle = const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold);
+
+    // Ergebnistext wird hier definiert (für Platzierung über Button)
+    String resultText = "";
+    if (_game.roundLoserName != null && _game.areResultsCalculated) {
+      resultText = _game.wasHalfLost
+          ? '${_game.roundLoserName} hat eine Halbzeit verloren!'
+          : '${_game.roundLidsTransferred} Deckel gehen an ${_game.roundLoserName}';
+    }
+
 
     Widget buttonWidget;
 
@@ -346,10 +346,20 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
       buttonWidget = const SizedBox(height: 80); // Angepasste Platzhalter Höhe (größere Buttons)
     }
 
-    // ANPASSUNG: Nur noch der Button wird hier gebaut
+    // ANPASSUNG: Fügt den Ergebnistext ÜBER dem Button ein
     return Padding(
       padding: buttonPadding,
-      child: buttonWidget,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (resultText.isNotEmpty && _game.areResultsCalculated)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Text(resultText, style: resultStyle, textAlign: TextAlign.center),
+            ),
+          buttonWidget,
+        ],
+      ),
     );
   }
 
@@ -385,93 +395,118 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
     );
   }
 
+  /// Baut die Ergebnisliste im Stil des Scoreboards
   Widget _buildResultDisplay() {
-    final titleStyle = const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold);
-    final playerNameStyle = const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold);
-    final diceSize = MediaQuery.of(context).size.width * 0.18;
-    final resultStyle = const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold); // Stil für Ergebnistext
+    final titleStyle = const TextStyle(color: Colors.black, fontSize: 28, fontWeight: FontWeight.bold); // Angepasst
+    final itemStyle = const TextStyle(color: Colors.black, fontSize: 22, fontWeight: FontWeight.bold); // Angepasst
+    final diceSize = MediaQuery.of(context).size.width * 0.12; // Angepasst
+    final double lidImageSize = 35.0; // Angepasst
 
-    // Ergebnistext wird hier definiert
-    String resultText = "";
-    if (_game.roundLoserName != null && _game.areResultsCalculated) {
-      resultText = _game.wasHalfLost
-          ? '${_game.roundLoserName} hat eine Halbzeit verloren!'
-          : '${_game.roundLidsTransferred} Deckel gehen an ${_game.roundLoserName}'; // Angepasster Text
-    }
+    // Sortierte Spielerliste für die Anzeige holen
+    List<MapEntry<String, SchockenScore>> sortedPlayerScores = _game.getSortedPlayerScores();
 
 
-    return Column( // Column umschließt alles für linksbündigen Titel
-      crossAxisAlignment: CrossAxisAlignment.start, // Titel linksbündig
-      children: [
-        const SizedBox(height: 20.0), // Abstand über dem Titel hinzugefügt
-        Text("Ergebnisliste", style: titleStyle), // Titel geändert und linksbündig
-        const SizedBox(height: 20),
-        const Divider(color: Colors.white, thickness: 3), // Divider hinzugefügt
-        const SizedBox(height: 20),
-        Center( // Zentriert den Rest des Inhalts horizontal
-          child: SingleChildScrollView( // Wichtig, falls viele Spieler
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center, // Zentriert vertikal
-              children: [
-                ...widget.playerNames.asMap().entries.map((entry) {
-                  int playerIndex = entry.key;
-                  String playerName = entry.value;
-                  SchockenScore? score = _game.playerScores[playerIndex];
-                  if (score == null) return const SizedBox.shrink();
+    return Container( // Wrapper-Container für Styling
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 10), // Abstand
+      decoration: BoxDecoration(
+        color: Colors.white, // Weißer Hintergrund
+        borderRadius: BorderRadius.circular(12.0),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black, // Harter Schatten
+            spreadRadius: 0,
+            blurRadius: 0,
+            offset: Offset(5, 7),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min, // Nimmt nur benötigte Höhe
+        children: [
+          Text("Ergebnisliste", style: titleStyle),
+          const SizedBox(height: 10),
+          const Divider(color: Colors.black54, thickness: 2),
+          const SizedBox(height: 10),
+          // Flexible + ListView für scrollbare Liste, wenn nötig
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true, // Wichtig in Column
+              itemCount: sortedPlayerScores.length,
+              itemBuilder: (context, index) {
+                final entry = sortedPlayerScores[index];
+                String playerName = entry.key;
+                SchockenScore score = entry.value;
 
-                  Color borderColor = Colors.transparent;
-                  if (playerName == _game.roundWinnerName) {
-                    borderColor = Colors.white;
-                  } else if (playerName == _game.roundLoserName) {
-                    borderColor = Colors.black;
-                  }
+                Color? highlightColor; // Hintergrundfarbe für Gewinner/Verlierer
+                if (playerName == _game.roundWinnerName) {
+                  highlightColor = Colors.green.shade100;
+                } else if (playerName == _game.roundLoserName) {
+                  highlightColor = Colors.red.shade100;
+                }
 
-                  BoxDecoration decoration = BoxDecoration(
-                    border: Border.all(color: borderColor, width: 3),
-                    borderRadius: BorderRadius.circular(8),
-                  );
+                int lidIndex = score.lidValue -1;
+                bool validLidIndex = DiceAssetPaths.lidUrls != null && lidIndex >= 0 && lidIndex < DiceAssetPaths.lidUrls!.length;
+                String lidAssetPath = validLidIndex ? DiceAssetPaths.lidUrls![lidIndex] : '';
 
-                  return Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6.0),
-                    padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-                    decoration: decoration,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min, // Passt Breite an Inhalt an
-                      children: [
-                        Expanded(
-                            child: Text(
-                              playerName,
-                              style: playerNameStyle,
-                              overflow: TextOverflow.ellipsis, // Verhindert Überlauf bei langen Namen
-                              maxLines: 1,
-                            )
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4.0),
+                  padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
+                  decoration: BoxDecoration(
+                    color: highlightColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                          flex: 3,
+                          child: Text(
+                            playerName,
+                            style: itemStyle,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          )
+                      ),
+                      SizedBox(
+                        width: lidImageSize + 10,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: validLidIndex && lidAssetPath.isNotEmpty
+                              ? Image.network(
+                            lidAssetPath,
+                            width: lidImageSize,
+                            height: lidImageSize,
+                            errorBuilder: (_,__,___) => Icon(Icons.circle, size: lidImageSize * 0.6, color: Colors.grey[600]),
+                          )
+                              : Icon(Icons.circle, size: lidImageSize * 0.6, color: Colors.grey[600]),
                         ),
-                        const SizedBox(width: 10), // Abstand
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: score.diceValues.map((diceValue) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: SizedBox(
-                                width: diceSize,
-                                height: diceSize / DiceAssetDisplay.diceAspectRatio,
-                                child: DiceAssetDisplay(value: diceValue),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                // Ergebnistext wird jetzt im ButtonArea angezeigt
-              ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: score.diceValues.map((diceValue) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                            child: SizedBox(
+                              width: diceSize,
+                              height: diceSize / DiceAssetDisplay.diceAspectRatio,
+                              child: DiceAssetDisplay(value: diceValue),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+
 
   Widget _buildDiceArea() {
     // Greift auf _game.rollsLeft zu
@@ -577,6 +612,12 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   // --- SCOREBOARD STYLING ---
   /// Wrapper-Container für das Scoreboard-Styling (Hintergrund, Schatten)
   Widget _buildScoreboardContainer() {
+    // Versteckt das Scoreboard während der Ergebnis-Anzeige oder Animation
+    if (_game.isRoundFinished && (_game.areResultsCalculated || _isRevealSequenceRunning)) {
+      return const SizedBox.shrink();
+    }
+
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0), // Optionaler seitlicher Abstand
       decoration: BoxDecoration(
@@ -602,7 +643,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
     const headerStyle = TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24); // Angepasst
     const cellStyle = TextStyle(color: Colors.black, fontSize: 22); // Angepasst
     final double lidImageSize = 40.0; // Angepasste Größe
-    Color currentHighlightColor = Color(0xFFFA4848); // Highlight für aktuellen Spieler
+    Color currentHighlightColor = Colors.grey.shade300; // Highlight für aktuellen Spieler
 
     Widget verticalDivider() => Container(height: 25, width: 1.5, color: Colors.black26); // Angepasste Farbe
 
@@ -613,7 +654,9 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
           children: [
             const Expanded(flex: 3, child: Text('SPIELER', style: headerStyle)),
             const Expanded(flex: 3, child: Center(child: Text('WURF', style: headerStyle))),
+            verticalDivider(),
             const Expanded(flex: 2, child: Center(child: Text('DECKEL', style: headerStyle))),
+            verticalDivider(),
             const Expanded(flex: 1, child: Center(child: Text('HZ', style: headerStyle))),
           ],
         ),
@@ -629,17 +672,8 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
 
           return Container( // Container für optionales Highlighting
-            //color: isCurrent ? currentHighlightColor : Colors.transparent, // Hintergrund für aktuellen Spieler
-            padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0), // Vertikaler Abstand für Zeilen
-            decoration: isCurrent ? BoxDecoration(
-                color: const Color(0xFFFA4848), // Angepasste Hintergrundfarbe
-                borderRadius: BorderRadius.circular(12), // Angepasster Radius
-                border: Border.all(color: Colors.white, width: 1) // Angepasste Border
-            ) : BoxDecoration(
-                color: Colors.transparent, // Angepasste Hintergrundfarbe
-                borderRadius: BorderRadius.circular(1), // Angepasster Radius
-                border: Border.all(color: Colors.white, width: 1) // Angepasste Border
-            ),
+            color: isCurrent ? currentHighlightColor : Colors.transparent, // Hintergrund für aktuellen Spieler
+            padding: const EdgeInsets.symmetric(vertical: 8.0), // Vertikaler Abstand für Zeilen
             child: Row(
               children: [
                 Expanded(
@@ -647,8 +681,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                   child: Text(
                     widget.playerNames[index],
                     style: cellStyle.copyWith(
-                      color: isCurrent ? Colors.white : Colors.black,
-                      fontWeight: isCurrent ? FontWeight.normal : FontWeight.bold
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -673,6 +706,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                       ) : Text('...', style: cellStyle.copyWith(color: Colors.black54)), // Angepasste Farbe
                     )
                 ),
+                verticalDivider(),
                 Expanded(
                   flex: 2,
                   child: Center(
@@ -686,6 +720,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                         : Icon(Icons.circle_outlined, size: lidImageSize * 0.6, color: Colors.black54), // Angepasste Farbe
                   ),
                 ),
+                verticalDivider(),
                 Expanded(
                   flex: 1,
                   child: Center(
@@ -825,23 +860,23 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   List<SchockenScore> _getRankedCombinations() {
     // Verwendet die neue, von dir bereitgestellte Liste
     List<SchockenScore> combos = [
-      SchockenScore(type: SchockenRollType.schockOut, value: 7, lidValue: 13, diceCount: 1, diceValues: [1, 1, 1], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.schockX, value: 6, lidValue: 6, diceCount: 1, diceValues: [6, 1, 1], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.schockX, value: 5, lidValue: 5, diceCount: 1, diceValues: [5, 1, 1], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.schockX, value: 4, lidValue: 4, diceCount: 1, diceValues: [4, 1, 1], heldDiceIndices: []), // Korrigierter Wert
-      SchockenScore(type: SchockenRollType.schockX, value: 3, lidValue: 3, diceCount: 1, diceValues: [3, 1, 1], heldDiceIndices: []), // Korrigierter Wert
-      SchockenScore(type: SchockenRollType.schockX, value: 2, lidValue: 2, diceCount: 1, diceValues: [2, 1, 1], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.pasch, value: 6, lidValue: 3, diceCount: 1, diceValues: [6, 6, 6], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.pasch, value: 5, lidValue: 3, diceCount: 1, diceValues: [5, 5, 5], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.pasch, value: 4, lidValue: 3, diceCount: 1, diceValues: [4, 4, 4], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.pasch, value: 3, lidValue: 3, diceCount: 1, diceValues: [3, 3, 3], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.pasch, value: 2, lidValue: 3, diceCount: 1, diceValues: [2, 2, 2], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.straight, value: 456, lidValue: 2, diceCount: 1, diceValues: [4, 5, 6], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.straight, value: 345, lidValue: 2, diceCount: 1, diceValues: [3, 4, 5], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.straight, value: 234, lidValue: 2, diceCount: 1, diceValues: [2, 3, 4], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.straight, value: 123, lidValue: 2, diceCount: 1, diceValues: [1, 2, 3], heldDiceIndices: []),
-      SchockenScore(type: SchockenRollType.simple, value: 665, lidValue: 1, diceCount: 1, diceValues: [6, 6, 5], heldDiceIndices: []), // Beispiel höchste
-      SchockenScore(type: SchockenRollType.simple, value: 221, lidValue: 1, diceCount: 1, diceValues: [2, 2, 1], heldDiceIndices: []), // Beispiel niedrigste
+      SchockenScore(type: SchockenRollType.schockOut, value: 7, lidValue: 13, diceCount: 1, diceValues: [1, 1, 1], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.schockX, value: 6, lidValue: 6, diceCount: 1, diceValues: [6, 1, 1], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.schockX, value: 5, lidValue: 5, diceCount: 1, diceValues: [5, 1, 1], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.schockX, value: 4, lidValue: 4, diceCount: 1, diceValues: [4, 1, 1], heldDiceIndices: [], playerIndex: 1), // Korrigierter Wert
+      SchockenScore(type: SchockenRollType.schockX, value: 3, lidValue: 3, diceCount: 1, diceValues: [3, 1, 1], heldDiceIndices: [], playerIndex: 1), // Korrigierter Wert
+      SchockenScore(type: SchockenRollType.schockX, value: 2, lidValue: 2, diceCount: 1, diceValues: [2, 1, 1], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.pasch, value: 6, lidValue: 3, diceCount: 1, diceValues: [6, 6, 6], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.pasch, value: 5, lidValue: 3, diceCount: 1, diceValues: [5, 5, 5], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.pasch, value: 4, lidValue: 3, diceCount: 1, diceValues: [4, 4, 4], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.pasch, value: 3, lidValue: 3, diceCount: 1, diceValues: [3, 3, 3], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.pasch, value: 2, lidValue: 3, diceCount: 1, diceValues: [2, 2, 2], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.straight, value: 456, lidValue: 2, diceCount: 1, diceValues: [4, 5, 6], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.straight, value: 345, lidValue: 2, diceCount: 1, diceValues: [3, 4, 5], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.straight, value: 234, lidValue: 2, diceCount: 1, diceValues: [2, 3, 4], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.straight, value: 123, lidValue: 2, diceCount: 1, diceValues: [1, 2, 3], heldDiceIndices: [], playerIndex: 1),
+      SchockenScore(type: SchockenRollType.simple, value: 665, lidValue: 1, diceCount: 1, diceValues: [6, 6, 5], heldDiceIndices: [], playerIndex: 1), // Beispiel höchste
+      SchockenScore(type: SchockenRollType.simple, value: 221, lidValue: 1, diceCount: 1, diceValues: [2, 2, 1], heldDiceIndices: [], playerIndex: 1), // Beispiel niedrigste
     ];
 
 

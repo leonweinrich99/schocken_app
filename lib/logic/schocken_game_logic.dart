@@ -1,16 +1,25 @@
 import 'package:flutter/foundation.dart'; // Für ChangeNotifier
-import 'dart:math' as math;
+import 'dart:math' as math; // Wird für Sortierung und Deckel-Logik benötigt
 
-// Enums und Score-Klasse bleiben hier oder können in eine eigene Datei (models.dart)
-enum SchockenRollType { simple, straight, pasch, schockX, schockOut }
+// --- ENUMS UND DATENSTRUKTUREN ---
+
+enum SchockenRollType {
+  simple,     // Niedrigster Rang
+  straight,
+  pasch,
+  schockX,
+  schockOut   // Höchster Rang
+}
 
 class SchockenScore {
   final SchockenRollType type;
-  final int value;
-  final int lidValue;
-  final int diceCount;
-  final List<int> diceValues;
+  final int value; // Numerischer Wert zur Sortierung innerhalb des Typs
+  // Höher ist besser, AUSSER bei Simple (niedriger ist schlechter/weniger gut)
+  final int lidValue; // Anzahl Deckel für diesen Wurf
+  final int diceCount; // Anzahl der Würfe (1-3)
+  final List<int> diceValues; // Die tatsächlichen Würfel [6, 1, 1]
   final List<int> heldDiceIndices;
+  final int playerIndex; // Index des Spielers, der geworfen hat (für Tie-Breaking)
 
   SchockenScore({
     required this.type,
@@ -19,90 +28,59 @@ class SchockenScore {
     required this.diceCount,
     required this.diceValues,
     required this.heldDiceIndices,
+    required this.playerIndex,
   });
 
+  /// Vergleicht diesen Score mit einem anderen.
+  /// Gibt true zurück, wenn dieser Score BESSER ist als der andere.
   bool isBetterThan(SchockenScore other) {
-    // SchockOut schlägt alles
-    if (type == SchockenRollType.schockOut && other.type != SchockenRollType.schockOut) return true;
-    if (type != SchockenRollType.schockOut && other.type == SchockenRollType.schockOut) return false;
-    // SchockX schlägt alles außer SchockOut
-    if (type == SchockenRollType.schockX && other.type != SchockenRollType.schockX && other.type != SchockenRollType.schockOut) return true;
-    if (type != SchockenRollType.schockX && type != SchockenRollType.schockOut && other.type == SchockenRollType.schockX) return false;
-
-    // Vergleich innerhalb SchockX
-    if (type == SchockenRollType.schockX && other.type == SchockenRollType.schockX) {
-      return value > other.value; // Höherer Schock ist besser
-    }
-
-    // Standard-Enum-Vergleich (Pasch > Straight > Simple)
-    // Beachte: Pasch/Straight/Simple werden nur nach Typ sortiert, der Wert ist sekundär,
-    // außer bei Simple, wo niedriger besser ist, wenn der Typ gleich ist.
+    // 1. Nach Typ vergleichen (höherer Index ist besser)
     if (type.index > other.type.index) return true;
     if (type.index < other.type.index) return false;
 
-
-    // Bei gleichem Typ
+    // 2. Bei gleichem Typ:
+    // Für Simple ist ein NIEDRIGERER Wert schlechter (also ein HÖHERER Wert besser im Vergleich)
     if (type == SchockenRollType.simple) {
-      // Niedrigere Hausnummer ist besser
-      // Sortiere absteigend für Wert (654 > 432), aber in der Logik ist kleiner besser
-      int thisValue = int.parse((List.from(diceValues)..sort((a, b) => b.compareTo(a))).join());
-      int otherValue = int.parse((List.from(other.diceValues)..sort((a, b) => b.compareTo(a))).join());
-      return thisValue < otherValue;
-    }
-    if (type == SchockenRollType.pasch) {
-      // Höherer Pasch ist besser
+      // Höhere Hausnummer ist "besser" (weniger schlecht)
       return value > other.value;
     }
-    if (type == SchockenRollType.straight) {
-      // Höhere Straße ist besser (z.B. 456 > 123)
-      List<int> thisSorted = List.from(diceValues)..sort();
-      List<int> otherSorted = List.from(other.diceValues)..sort();
-      int thisStraightValue = int.parse(thisSorted.join());
-      int otherStraightValue = int.parse(otherSorted.join());
-      return thisStraightValue > otherStraightValue;
-    }
 
-    // Fallback (sollte nicht erreicht werden)
-    return false;
+    // Für alle anderen Typen ist ein HÖHERER Wert besser
+    return value > other.value;
   }
-
 
   String get typeString {
     switch (type) {
       case SchockenRollType.schockOut:
         return 'Schock-Aus!';
       case SchockenRollType.schockX:
-        return 'Schock $value';
+      // Finde den Wert des Schocks (die Zahl, die keine 1 ist)
+        int schockValue = diceValues.firstWhere((d) => d != 1, orElse: () => 0);
+        return 'Schock $schockValue';
       case SchockenRollType.pasch:
-        return 'Pasch ${diceValues[0]}er'; // Angepasst
+      // Zeigt den Wert des Pasches an, z.B. "Pasch 6er"
+        return 'Pasch ${diceValues[0]}er'; // Alle Würfel sind gleich
       case SchockenRollType.straight:
-      // Zeigt die höchste Zahl der Straße an
-        int highest = diceValues.reduce(math.max);
-        return 'Straße bis $highest';
+      // Zeigt die Straße an, z.B. "Straße 456"
+        List<int> sorted = List.from(diceValues)..sort();
+        return 'Straße ${sorted.join()}';
       case SchockenRollType.simple:
-      // Sortiert für korrekte Hausnummernanzeige (höchste zuerst)
-        List<int> sortedDice = List.from(diceValues)..sort((a, b) => b.compareTo(a));
-        return 'Hausnr. ${sortedDice.join()}';
+      // Zeigt die Hausnummer an (höchste zuerst)
+        List<int> sorted = List.from(diceValues)..sort((a, b) => b.compareTo(a));
+        return '${sorted.join()}'; // Nur die Zahl anzeigen
     }
   }
 }
 
 
-// Die Haupt-Logik-Klasse
+// --- SPIELLOGIK ---
+
 class SchockenGame extends ChangeNotifier {
-  final List<String> playerNames;
-
-  SchockenGame(this.playerNames) {
-    _playerLids = List.generate(playerNames.length, (index) => 0);
-    _playerHalfLosses = List.generate(playerNames.length, (index) => 0);
-    _playerScores = List.generate(playerNames.length, (index) => null);
-    _initializeRound(); // Startet die erste Runde
-  }
-
   // --- Spielzustand ---
+  final List<String> playerNames;
   late List<int> _playerLids;
   late List<int> _playerHalfLosses;
-  late List<SchockenScore?> _playerScores;
+  late List<SchockenScore?> _playerScores; // Index entspricht Spielerindex
   int _lidsInMiddle = 13;
   int _rollsLeft = 3;
   int _currentPlayerIndex = 0;
@@ -110,13 +88,13 @@ class SchockenGame extends ChangeNotifier {
   int _loserIndexAtStartOfRound = 0; // Index des Spielers, der die Runde beginnt
   List<int> _currentDiceValues = [1, 1, 1];
   List<int> _heldDiceIndices = [];
-  int _maxRollsInRound = 3;
+  int _maxRollsInRound = 3; // Max. erlaubte Würfe in dieser Runde
 
-  // Phasensteuerung
+  // --- Phasensteuerung ---
   bool _isRoundFinished = false;
-  bool _areResultsCalculated = false; // Geändert von _areResultsRevealed
+  bool _areResultsCalculated = false;
 
-  // Ergebnisanzeige
+  // --- Ergebnisanzeige ---
   String? _roundWinnerName;
   String? _roundLoserName;
   int _roundLidsTransferred = 0;
@@ -130,12 +108,11 @@ class SchockenGame extends ChangeNotifier {
   int get lidsInMiddle => _lidsInMiddle;
   int get rollsLeft => _rollsLeft;
   int get currentPlayerIndex => _currentPlayerIndex;
-  String get currentPlayerName => playerNames[_currentPlayerIndex];
   int get half => _half;
+  int get loserIndexAtStartOfRound => _loserIndexAtStartOfRound;
   List<int> get currentDiceValues => _currentDiceValues;
   List<int> get heldDiceIndices => _heldDiceIndices;
   int get maxRollsInRound => _maxRollsInRound;
-  int get loserIndexAtStartOfRound => _loserIndexAtStartOfRound; // GETTER HINZUGEFÜGT
   bool get isRoundFinished => _isRoundFinished;
   bool get areResultsCalculated => _areResultsCalculated;
   String? get roundWinnerName => _roundWinnerName;
@@ -144,49 +121,15 @@ class SchockenGame extends ChangeNotifier {
   bool get wasHalfLost => _wasHalfLost;
   bool get wasGameLost => _wasGameLost;
 
-  // --- Spielaktionen ---
-
-  void _initializeRound() {
-    _rollsLeft = 3;
-    _currentDiceValues = [1, 1, 1];
-    _heldDiceIndices = [];
-    _isRoundFinished = false;
-    _areResultsCalculated = false;
-    _roundLoserName = null;
-    _roundWinnerName = null;
-
-    if (_currentPlayerIndex == _loserIndexAtStartOfRound) {
-      _maxRollsInRound = 3;
-      _playerScores = List.generate(playerNames.length, (index) => null);
-    }
-    if (_playerScores[_currentPlayerIndex] != null) {
-      _playerScores[_currentPlayerIndex] = null;
-    }
-    notifyListeners();
-  }
-
-  void startNextRoundOrHalf() {
-    if (_wasGameLost) {
-      print("Spiel zu Ende!");
-      return;
-    } else if (_wasHalfLost) {
-      startNextHalf();
-    } else {
-      // Der Verlierer der letzten Runde beginnt die nächste
-      _currentPlayerIndex = _loserIndexAtStartOfRound;
-      _initializeRound();
-    }
-  }
-
-
-  void startNextHalf() {
-    _half++;
-    _lidsInMiddle = 13;
+  // --- Konstruktor ---
+  SchockenGame(this.playerNames) {
     _playerLids = List.generate(playerNames.length, (index) => 0);
-    _currentPlayerIndex = _loserIndexAtStartOfRound; // Verlierer beginnt
-    _initializeRound();
+    _playerHalfLosses = List.generate(playerNames.length, (index) => 0);
+    _playerScores = List.generate(playerNames.length, (index) => null);
+    _startRound(); // Starte die erste Runde
   }
 
+  // --- Spielaktionen ---
   void rollDice() {
     if (_currentPlayerIndex != _loserIndexAtStartOfRound && (3 - _rollsLeft) >= _maxRollsInRound) return;
     if (_rollsLeft == 0) return;
@@ -202,9 +145,10 @@ class SchockenGame extends ChangeNotifier {
     final currentRolls = 3 - _rollsLeft;
 
     if ((_currentPlayerIndex != _loserIndexAtStartOfRound && currentRolls >= _maxRollsInRound) || _rollsLeft == 0) {
-      endTurn(true); // Automatisches Beenden
+      endTurn(true);
+    } else {
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   void handleDiceTap(int index) {
@@ -233,6 +177,7 @@ class SchockenGame extends ChangeNotifier {
     }
   }
 
+
   void endTurn(bool isForced) {
     if (!isForced && _rollsLeft == 3) return;
     final usedRolls = 3 - _rollsLeft;
@@ -241,83 +186,174 @@ class SchockenGame extends ChangeNotifier {
       _maxRollsInRound = usedRolls == 0 ? 1 : usedRolls;
     }
 
-    SchockenScore score = _evaluateDice(_currentDiceValues, usedRolls, List.from(_heldDiceIndices));
+    SchockenScore score = _evaluateDice(_currentDiceValues, usedRolls, List.from(_heldDiceIndices), _currentPlayerIndex);
     _playerScores[_currentPlayerIndex] = score;
 
-    bool allPlayersDone = !_playerScores.contains(null);
+    bool allPlayersDone = true;
+    for (var score in _playerScores) {
+      if (score == null) {
+        allPlayersDone = false;
+        break;
+      }
+    }
+    // Kompaktere Prüfung: bool allPlayersDone = !_playerScores.contains(null);
+
 
     if (allPlayersDone) {
       _isRoundFinished = true;
     } else {
       _currentPlayerIndex = (_currentPlayerIndex + 1) % playerNames.length;
-      // Hier _initializeRound rufen, um den nächsten Spieler vorzubereiten
-      // Wichtig: _initializeRound prüft, ob es der Startspieler ist und setzt ggf. Scores zurück
-      _initializeRound();
+      _prepareNextTurn();
     }
     notifyListeners();
   }
 
-  SchockenScore _evaluateDice(List<int> dice, int diceCount, List<int> heldIndices) {
-    final sorted = List<int>.from(dice)..sort((a,b) => b.compareTo(a)); // Höchste zuerst
+  // --- Runden-/Spiel-Management ---
+  void _startRound() {
+    _rollsLeft = 3;
+    _currentDiceValues = [1, 1, 1];
+    _heldDiceIndices = [];
+    _isRoundFinished = false;
+    _areResultsCalculated = false;
+    _roundWinnerName = null;
+    _roundLoserName = null;
+    _wasHalfLost = false;
+    _wasGameLost = false;
 
-    // Schock-Aus (111)
-    if (dice.every((d) => d == 1)) {
-      return SchockenScore(type: SchockenRollType.schockOut, value: 111, lidValue: 13, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices);
-    }
-    // Schock (X11)
-    if (dice.where((d) => d == 1).length == 2) {
-      int val = dice.firstWhere((d) => d != 1);
-      return SchockenScore(type: SchockenRollType.schockX, value: val, lidValue: val, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices);
-    }
-    // Pasch (XXX)
-    if (dice[0] == dice[1] && dice[1] == dice[2]) {
-      return SchockenScore(type: SchockenRollType.pasch, value: dice[0], lidValue: 3, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices);
-    }
-    // Straße (sortiert prüfen!)
-    final uniqueSorted = (List<int>.from(dice)..sort()).toSet().toList();
-    if (uniqueSorted.length == 3 && uniqueSorted[0] + 1 == uniqueSorted[1] && uniqueSorted[1] + 1 == uniqueSorted[2]) {
-      return SchockenScore(type: SchockenRollType.straight, value: int.parse(uniqueSorted.join()), lidValue: 2, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices);
-    }
-
-    // Einfache Zahl / Hausnummer (höchste zuerst)
-    int value = int.parse(sorted.join());
-    return SchockenScore(type: SchockenRollType.simple, value: value, lidValue: 1, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices);
-  }
-
-
-  void calculateAndSetResults() {
-    if (!_isRoundFinished) return;
-
-    List<MapEntry<String, SchockenScore>> scoredPlayers = [];
-    for (int i = 0; i < playerNames.length; i++) {
-      if (_playerScores[i] != null) {
-        scoredPlayers.add(MapEntry(playerNames[i], _playerScores[i]!));
+    if (_currentPlayerIndex == _loserIndexAtStartOfRound) {
+      _maxRollsInRound = 3;
+      // Scores nur zurücksetzen, wenn eine *komplett neue* Runde beginnt (also vom Verlierer gestartet)
+      _playerScores = List.generate(playerNames.length, (index) => null);
+    } else {
+      // Wenn ein anderer Spieler dran ist, nur dessen Score zurücksetzen
+      if(_playerScores[_currentPlayerIndex] != null) {
+        _playerScores[_currentPlayerIndex] = null;
       }
     }
 
-    // Sortiere von Bester (Index 0) zu Schlechtester (letzter Index)
-    scoredPlayers.sort((a, b) => a.value.isBetterThan(b.value) ? -1 : 1);
+    // Kein notifyListeners() hier, da es von außen kommt
+  }
+
+  void _prepareNextTurn() {
+    _rollsLeft = 3;
+    _currentDiceValues = [1, 1, 1];
+    _heldDiceIndices = [];
+    // Wichtig: _isRoundFinished etc. hier *nicht* zurücksetzen
+    // Score des nächsten Spielers wird in _startRound() zurückgesetzt, wenn er dran ist
+    // Hier nichts tun bzgl. Scores
+  }
 
 
-    _roundWinnerName = scoredPlayers.first.key;
-    _roundLoserName = scoredPlayers.last.key;
+  void startNextRoundOrHalf() {
+    if (_wasHalfLost) {
+      _startHalf();
+    } else {
+      // Wichtig: _currentPlayerIndex wurde bereits in calculateAndSetResults gesetzt
+      _startRound();
+    }
+    notifyListeners();
+  }
+
+  void _startHalf() {
+    _half++;
+    _lidsInMiddle = 13;
+    _playerLids = List.generate(playerNames.length, (index) => 0);
+    // _currentPlayerIndex bleibt der Verlierer der letzten Runde
+    _startRound();
+    // notifyListeners() in startNextRoundOrHalf
+  }
+
+
+  // --- Ergebnisberechnung (Logik stark überarbeitet) ---
+  SchockenScore _evaluateDice(List<int> dice, int diceCount, List<int> heldIndices, int playerIndex) {
+    // Sortiere absteigend für die Hausnummern-Bildung
+    final sortedHighToLow = List<int>.from(dice)..sort((a,b) => b.compareTo(a));
+    // Sortiere aufsteigend für Straßen-Prüfung und Wert
+    final sortedLowToHigh = List<int>.from(dice)..sort();
+    final unique = dice.toSet();
+
+    // 1. Schock Out (111)
+    if (dice.every((d) => d == 1)) {
+      // Value für Vergleichszwecke, Deckelwert ist 13
+      return SchockenScore(type: SchockenRollType.schockOut, value: 7, lidValue: 13, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices, playerIndex: playerIndex);
+    }
+
+    // 2. Schock X (X11)
+    if (dice.where((e) => e == 1).length == 2) {
+      int schockValue = dice.firstWhere((e) => e != 1);
+      // Value ist der Wert des Schocks (6 > 5 > ...) für Vergleich, Deckelwert ist schockValue
+      return SchockenScore(type: SchockenRollType.schockX, value: schockValue, lidValue: schockValue, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices, playerIndex: playerIndex);
+    }
+
+    // 3. Pasch (XXX)
+    if (unique.length == 1) {
+      // Value ist der Wert des Pasches (6 > 5 > ...) für Vergleich, Deckelwert ist 3
+      return SchockenScore(type: SchockenRollType.pasch, value: dice[0], lidValue: 3, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices, playerIndex: playerIndex);
+    }
+
+    // 4. Straße (123, 234, 345, 456)
+    if (unique.length == 3 && (sortedLowToHigh[0] + 1 == sortedLowToHigh[1] && sortedLowToHigh[1] + 1 == sortedLowToHigh[2])) {
+      // Value ist die numerische Darstellung (456 > 345 > ...) für Vergleich, Deckelwert ist 2
+      return SchockenScore(type: SchockenRollType.straight, value: int.parse(sortedLowToHigh.join()), lidValue: 2, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices, playerIndex: playerIndex);
+    }
+
+    // 5. Simple (Hausnummer)
+    // Value ist die Hausnummer (höchste zuerst), z.B. 643.
+    // ACHTUNG: Niedrigere Hausnummer ist SCHLECHTER (verliert eher). In isBetterThan wird < verwendet.
+    int hausnummerValue = int.parse(sortedHighToLow.join());
+    return SchockenScore(type: SchockenRollType.simple, value: hausnummerValue, lidValue: 1, diceCount: diceCount, diceValues: dice, heldDiceIndices: heldIndices, playerIndex: playerIndex);
+  }
+
+  /// Berechnet Endergebnis mit korrigiertem Tie-Breaking
+  void calculateAndSetResults() {
+    if (!_isRoundFinished) return;
+
+    List<MapEntry<String, SchockenScore>> scoredPlayers = getSortedPlayerScores(); // Sortiert von Best nach Schlechtest
+
+    // --- KORRIGIERTE Tie-Breaking Logik ---
+    String finalLoserName = scoredPlayers.last.key; // Annahme: Letzter ist Verlierer
+    SchockenScore loserScore = scoredPlayers.last.value;
+
+    // Finde alle Spieler mit dem gleichen schlechtesten Score
+    List<MapEntry<String, SchockenScore>> potentialLosers = scoredPlayers
+        .where((entry) =>
+    entry.value.type == loserScore.type && entry.value.value == loserScore.value)
+        .toList();
+
+    if (potentialLosers.length > 1) {
+      // Schock Out: Der LETZTE Spieler verliert (höchster Index)
+      if (loserScore.type == SchockenRollType.schockOut) {
+        potentialLosers.sort((a, b) => b.value.playerIndex.compareTo(a.value.playerIndex)); // Sortiert absteigend nach Index
+        finalLoserName = potentialLosers.first.key;
+      }
+      // Andere Typen: Der ERSTE Spieler verliert (niedrigster Index)
+      else {
+        potentialLosers.sort((a, b) => a.value.playerIndex.compareTo(b.value.playerIndex)); // Sortiert aufsteigend nach Index
+        finalLoserName = potentialLosers.first.key;
+      }
+    }
+    // --- Ende Tie-Breaking ---
+
+    _roundWinnerName = scoredPlayers.first.key; // Gewinner ist immer der Erste nach normaler Sortierung
+    _roundLoserName = finalLoserName; // Der Verlierer nach Tie-Breaking
     int loserIndex = playerNames.indexOf(_roundLoserName!);
-    SchockenScore bestScoreOfRound = scoredPlayers.first.value;
+    SchockenScore bestScoreOfRound = scoredPlayers.first.value; // Bester Score bestimmt Deckel
     _roundLidsTransferred = bestScoreOfRound.lidValue;
 
     _wasHalfLost = false;
     _wasGameLost = false;
 
     // --- Deckel-Logik ---
-    int lidsFromMiddle = math.min(_lidsInMiddle, _roundLidsTransferred);
+    int lidsToTake = _roundLidsTransferred;
+    int lidsFromMiddle = math.min(_lidsInMiddle, lidsToTake);
     _playerLids[loserIndex] += lidsFromMiddle;
     _lidsInMiddle -= lidsFromMiddle;
+    lidsToTake -= lidsFromMiddle;
 
-    if (lidsFromMiddle < _roundLidsTransferred && playerNames.length > 1) {
+    if (lidsToTake > 0 && playerNames.length > 1) {
       int winnerIndex = playerNames.indexOf(_roundWinnerName!);
       if (winnerIndex != loserIndex) {
-        int lidsFromWinner = _roundLidsTransferred - lidsFromMiddle;
-        int actualLidsFromWinner = math.min(_playerLids[winnerIndex], lidsFromWinner);
+        int actualLidsFromWinner = math.min(_playerLids[winnerIndex], lidsToTake);
         _playerLids[winnerIndex] -= actualLidsFromWinner;
         _playerLids[loserIndex] += actualLidsFromWinner;
       }
@@ -327,7 +363,7 @@ class SchockenGame extends ChangeNotifier {
 
     if (_playerLids[loserIndex] >= 13) {
       _wasHalfLost = true;
-      // Bei Halbzeitverlust werden alle Deckel zurückgesetzt und die Mitte aufgefüllt
+      // Bei Halbzeitverlust werden ALLE Deckel zurückgesetzt und die Mitte aufgefüllt
       _playerLids = List.generate(playerNames.length, (index) => 0);
       _lidsInMiddle = 13;
       _playerHalfLosses[loserIndex]++;
@@ -336,12 +372,25 @@ class SchockenGame extends ChangeNotifier {
       }
     }
 
+    _loserIndexAtStartOfRound = loserIndex; // Verlierer beginnt nächste Runde
+    _currentPlayerIndex = loserIndex;      // Setzt den Index für _startRound()
 
-    _loserIndexAtStartOfRound = loserIndex; // Setzt den Index für die nächste Runde
-    // _currentPlayerIndex wird erst beim Start der nächsten Runde gesetzt
-
-    _areResultsCalculated = true; // Markiert, dass die Berechnung abgeschlossen ist
-    notifyListeners();
+    _areResultsCalculated = true; // Markiert, dass Ergebnisse berechnet wurden
+    notifyListeners(); // UI über Ergebnisse informieren
   }
+
+  /// Gibt eine sortierte Liste der Spieler und ihrer Scores zurück (Bester zuerst).
+  List<MapEntry<String, SchockenScore>> getSortedPlayerScores() {
+    List<MapEntry<String, SchockenScore>> scoredPlayers = [];
+    for (int i = 0; i < playerNames.length; i++) {
+      if (_playerScores[i] != null) {
+        scoredPlayers.add(MapEntry(playerNames[i], _playerScores[i]!));
+      }
+    }
+    // Sortiert von Bester (links/Index 0) zu Schlechtester (rechts/letzter Index)
+    scoredPlayers.sort((a, b) => a.value.isBetterThan(b.value) ? -1 : 1);
+    return scoredPlayers;
+  }
+
 }
 

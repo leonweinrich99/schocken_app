@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'screens/game_selection_screen.dart';
 import 'screens/video_splash_screen.dart';
-import 'screens/initial_splash_screen.dart'; // NEUER IMPORT
+import 'screens/initial_splash_screen.dart';
+import 'screens/player_entry_screen.dart'; // NEUER IMPORT
 import 'games/simple_dice_game.dart';
 import 'games/schocken_game.dart';
 import 'games/four_two_eighteen_game.dart';
 
 // Enum zur Verwaltung des Spielzustands (ERWEITERT)
 enum GameMode {
-  initialSplash, // NEUER STARTZUSTAND
+  initialSplash,
   selection,
+  playerEntry, // NEUER ZUSTAND für Spielereingabe
   videoSplash,
   simpleDiceGame,
   schocken,
@@ -30,11 +32,11 @@ class DiceGameApp extends StatelessWidget {
           primary: Colors.white,
           secondary: Color(0xFF1E1E1E),
           surface: Color(0xFF1E1E1E),
-          background: Color(0xFFFA4848),
+          background: Color(0xFFEB3B2C),
         ),
-        scaffoldBackgroundColor: const Color(0xFFFA4848),
-        appBarTheme: const AppBarTheme( // AppBar wird hier nicht mehr genutzt, könnte entfernt werden
-          backgroundColor: Color(0xFFFA4848),
+        scaffoldBackgroundColor: const Color(0xFFEB3B2C),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFEB3B2C),
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
@@ -59,15 +61,29 @@ class GameWrapperScreen extends StatefulWidget {
 }
 
 class _GameWrapperScreenState extends State<GameWrapperScreen> {
-  // Startet jetzt mit dem InitialSplashScreen
   GameMode _currentGameMode = GameMode.initialSplash;
   GameMode? _selectedGameAfterSplash;
-  List<String> _players = ['Spieler 1', 'Spieler 2', 'Spieler 3', 'Spieler 4', 'Spieler 5', 'Spieler 6']; // Lokale Spieler
+  List<String> _players = ['Spieler 1']; // Startet jetzt mit leerer Liste oder Standard
 
+  /// Diese Funktion startet jetzt den PlayerEntryScreen für Schocken, sonst VideoSplash
   void _selectGame(GameMode mode) {
     setState(() {
-      _selectedGameAfterSplash = mode;
-      _currentGameMode = GameMode.videoSplash;
+      if (mode == GameMode.schocken) { // Nur bei Schocken zur Spielereingabe
+        _currentGameMode = GameMode.playerEntry;
+        _selectedGameAfterSplash = mode; // Merken, dass Schocken gestartet werden soll
+      } else { // Für andere Spiele direkt zum Video
+        _selectedGameAfterSplash = mode;
+        _currentGameMode = GameMode.videoSplash;
+      }
+    });
+  }
+
+  /// Wird vom PlayerEntryScreen aufgerufen, um das Spiel zu starten
+  void _startGameWithPlayers(List<String> playerNames) {
+    setState(() {
+      _players = playerNames; // Spielerliste aktualisieren
+      _currentGameMode = GameMode.videoSplash; // Video starten
+      // _selectedGameAfterSplash sollte hier bereits gesetzt sein (z.B. auf schocken)
     });
   }
 
@@ -80,7 +96,9 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
 
   void _exitGame() {
     setState(() {
-      _currentGameMode = GameMode.selection;
+      _currentGameMode = GameMode.selection; // Zurück zur Auswahl
+      _selectedGameAfterSplash = null; // Auswahl zurücksetzen
+      _players = ['Spieler 1']; // Spieler zurücksetzen (optional)
     });
   }
 
@@ -89,10 +107,16 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
     Widget currentScreen;
 
     switch (_currentGameMode) {
-    // --- NEUER CASE FÜR DEN ERSTEN SPLASH ---
       case GameMode.initialSplash:
         currentScreen = InitialSplashScreen(
-          onFinished: _goToSelection, // Geht danach zur Auswahl
+          onFinished: _goToSelection,
+        );
+        break;
+    // --- NEUER CASE FÜR SPIELEREINGABE ---
+      case GameMode.playerEntry:
+        currentScreen = PlayerEntryScreen(
+          onStartGame: _startGameWithPlayers, // Callback zum Starten
+          onBack: _exitGame, // Geht zurück zur Auswahl
         );
         break;
     // --- Bestehende Cases ---
@@ -113,19 +137,19 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
         );
         break;
       case GameMode.schocken:
+      // Stellt sicher, dass Spieler vorhanden sind, sonst Fallback
         currentScreen = SchockenGameWidget(
-          playerNames: _players,
+          playerNames: _players.isNotEmpty ? _players : ['Spieler 1'],
           onGameQuit: _exitGame,
         );
         break;
       case GameMode.fourTwoEighteen:
         currentScreen = FourTwoEighteenGameWidget(
-          players: _players,
+          players: _players.isNotEmpty ? _players : ['Spieler 1'],
           onGameExit: _exitGame,
         );
         break;
       case GameMode.maexchen:
-      // Hier dein Mäxchen-Widget einfügen
         currentScreen = GameSelectionScreen(onGameSelected: _selectGame);
         break;
       case GameMode.selection:
