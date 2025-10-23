@@ -16,7 +16,7 @@ class _InitialSplashScreenState extends State<InitialSplashScreen> {
   void initState() {
     super.initState();
     // Nach einer Sekunde zur nächsten Ansicht wechseln
-    Timer(const Duration(seconds: 1), widget.onFinished);
+    Timer(const Duration(seconds: 3), widget.onFinished);
   }
 
   @override
@@ -34,7 +34,7 @@ class _InitialSplashScreenState extends State<InitialSplashScreen> {
                 fontSize: 100, // Sehr groß, wie im Bild
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
-                letterSpacing: 2,
+                letterSpacing: 1,
               ),
               textAlign: TextAlign.center,
             ),

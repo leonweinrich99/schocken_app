@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 // HILFSKLASSE: Würfel-Definition für Asset-Pfade
 class DiceAssetPaths {
   static const String ASSET_BASE_URL = 'assets/images/dices/';
+  static const String LID_BASE_URL = 'assets/images/lids/';
 
   static String diceCupUrl = 'assets/images/cup.png';
   // NEU: Pfad für den Fragezeichen-Würfel
@@ -16,6 +17,23 @@ class DiceAssetPaths {
     '${ASSET_BASE_URL}dice_05.png', // Index 4 (Wert 5)
     '${ASSET_BASE_URL}dice_06.png', // Index 5 (Wert 6)
   ];
+
+  static List<String> lidUrls = [
+    '${LID_BASE_URL}lid_01.png', // Index 0 (Wert 1)
+    '${LID_BASE_URL}lid_02.png', // Index 1 (Wert 2)
+    '${LID_BASE_URL}lid_03.png', // Index 2 (Wert 3)
+    '${LID_BASE_URL}lid_04.png', // Index 3 (Wert 4)
+    '${LID_BASE_URL}lid_05.png', // Index 4 (Wert 5)
+    '${LID_BASE_URL}lid_06.png', // Index 5 (Wert 6)
+    '${LID_BASE_URL}lid_07.png', // Index 6 (Wert 7)
+    '${LID_BASE_URL}lid_08.png', // Index 7 (Wert 8)
+    '${LID_BASE_URL}lid_09.png', // Index 8 (Wert 9)
+    '${LID_BASE_URL}lid_10.png', // Index 9 (Wert 10)
+    '${LID_BASE_URL}lid_11.png', // Index 10 (Wert 11)
+    '${LID_BASE_URL}lid_12.png', // Index 11 (Wert 12)
+    '${LID_BASE_URL}lid_13.png', // Index 12 (Wert 13)
+  ];
+
   static bool useAssets = true;
 }
 

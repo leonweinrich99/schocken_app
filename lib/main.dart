@@ -30,11 +30,11 @@ class DiceGameApp extends StatelessWidget {
           primary: Colors.white,
           secondary: Color(0xFF1E1E1E),
           surface: Color(0xFF1E1E1E),
-          background: Color(0xFFEB3B2C),
+          background: Color(0xFFFA4848),
         ),
-        scaffoldBackgroundColor: const Color(0xFFEB3B2C),
+        scaffoldBackgroundColor: const Color(0xFFFA4848),
         appBarTheme: const AppBarTheme( // AppBar wird hier nicht mehr genutzt, könnte entfernt werden
-          backgroundColor: Color(0xFFEB3B2C),
+          backgroundColor: Color(0xFFFA4848),
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
@@ -62,7 +62,7 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
   // Startet jetzt mit dem InitialSplashScreen
   GameMode _currentGameMode = GameMode.initialSplash;
   GameMode? _selectedGameAfterSplash;
-  List<String> _players = ['Spieler 1', 'Spieler 2']; // Lokale Spieler
+  List<String> _players = ['Spieler 1', 'Spieler 2', 'Spieler 3', 'Spieler 4', 'Spieler 5', 'Spieler 6']; // Lokale Spieler
 
   void _selectGame(GameMode mode) {
     setState(() {

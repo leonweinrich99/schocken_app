@@ -11,7 +11,7 @@ class GameSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(1),
         constraints: const BoxConstraints(maxWidth: 475),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -21,10 +21,17 @@ class GameSelectionScreen extends StatelessWidget {
             const Text(
               'WÜRFELN',
               style: TextStyle(
-                fontSize: 64, // Größer, um dem Design zu entsprechen
+                fontSize: 100, // Größer, um dem Design zu entsprechen
                 fontWeight: FontWeight.w900,
+                shadows: [
+                  Shadow(
+                    color: Colors.black, // Farbe des Schattens mit Deckkraft
+                    offset: Offset(13, 0),                // Horizontale (dx) und vertikale (dy) Verschiebung
+                    blurRadius: 0,                       // Weichzeichner-Radius
+                  ),
+                ],
                 color: Colors.white,
-                letterSpacing: 2,
+                letterSpacing: 1,
               ),
               textAlign: TextAlign.center,
             ),
@@ -85,7 +92,7 @@ class GameSelectionScreen extends StatelessWidget {
         color: isDisabled ? Color(0xFF1E1E1E) : Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(
           side: const BorderSide(color: Colors.black, width: 0),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: InkWell(
           onTap: isDisabled || mode == null ? null : () => onGameSelected(mode),
@@ -102,7 +109,7 @@ class GameSelectionScreen extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 32,
+                      fontSize: 42,
                       fontWeight: FontWeight.w900,
                       color: isDisabled ? Colors.white54 : Colors.white,
                     ),
@@ -117,7 +124,7 @@ class GameSelectionScreen extends StatelessWidget {
 
   /// Baut ein Würfel-Bild-Widget (ähnlich wie im InitialSplashScreen)
   Widget _buildDiceImage(int value) {
-    const double diceSize = 100.0; // Feste Größe für diesen Screen
+    const double diceSize = 135.0; // Feste Größe für diesen Screen
 
     // Stellt sicher, dass der Wert gültig ist
     if (value < 1 || value > 6) {
