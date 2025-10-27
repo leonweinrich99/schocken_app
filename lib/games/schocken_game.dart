@@ -121,8 +121,16 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                     alignment: Alignment.center,
                     children: [
                       // Titel
-                      const Center(
-                        child: Text('SCHOCKEN', style: TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w900)),
+                      Center(
+                        // --- RESPONSIVE ANPASSUNG ---
+                        // Padding, um nicht mit den Icons zu kollidieren
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown, // Skaliert Text nur herunter, wenn nötig
+                            child: const Text('SCHOCKEN', style: TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w900)),
+                          ),
+                        ),
                       ),
                       // Zurück-Button
                       Align(
@@ -198,7 +206,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
     int lidIndex = math.max(0, lidsInMiddleCount - 1); // Stellt sicher, dass Index nicht negativ ist
     // Sicherstellen, dass der Index gültig ist und lidUrls existiert
     bool validLidIndex = DiceAssetPaths.lidUrls != null && lidIndex < DiceAssetPaths.lidUrls!.length;
-    String lidAssetPath = validLidIndex ? DiceAssetPaths.lidUrls![lidIndex] : ''; // Fallback
+    String lidAssetPath = validLidIndex ? DiceAssetPaths.lidUrls[lidIndex] : ''; // Fallback
 
 
     // Würfelbild für Wurfnummer
@@ -211,7 +219,10 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
     // Stil für den Text unter den Bildern
     const indicatorTextStyle = TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold); // Schriftgröße angepasst
-    const double indicatorSize = 70.0; // Größe der Indikator-Boxen
+
+    // --- RESPONSIVE ANPASSUNG ---
+    // Größe der Indikator-Boxen basierend auf Bildschirmbreite, mit min/max
+    final double indicatorSize = (MediaQuery.of(context).size.width * 0.18).clamp(60.0, 80.0);
 
 
     return Positioned(
@@ -236,7 +247,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                 children: [
                   // Würfelbild anzeigen
                   validDiceIndex && diceAssetPath.isNotEmpty
-                      ? Image.network( // Image.network für lokale Dateien
+                      ? Image.asset( // Image.asset für lokale Dateien
                     diceAssetPath,
                     height: indicatorSize * 0.5,
                     fit: BoxFit.contain,
@@ -265,13 +276,13 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                 children: [
                   // Deckelbild anzeigen
                   (lidsInMiddleCount > 0 && validLidIndex && lidAssetPath.isNotEmpty)
-                      ? Image.network( // Image.network für lokale Dateien
+                      ? Image.asset( // Image.asset für lokale Dateien
                     lidAssetPath,
                     height: indicatorSize * 0.5,
                     fit: BoxFit.contain,
-                    errorBuilder: (_,__,___) => Icon(Icons.circle, size: indicatorSize * 0.5, color: Colors.black), // Fallback geändert
+                    errorBuilder: (_,__,___) => Icon(Icons.circle, size: indicatorSize * 0.5, color: Colors.red), // Fallback geändert
                   )
-                      : Icon(Icons.circle_outlined, size: indicatorSize * 0.5, color: Colors.black), // Fallback für 0 Deckel
+                      : Icon(Icons.circle_outlined, size: indicatorSize * 0.5, color: Colors.red), // Fallback für 0 Deckel
                   const SizedBox(height: 4),
                   const Text("DECKEL", style: indicatorTextStyle),
                 ],
@@ -286,15 +297,25 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   Widget _buildMainContentArea() {
     // Greift auf _game.isRoundFinished etc. zu
     if (_game.isRoundFinished && !_game.areResultsCalculated && !_isRevealSequenceRunning) {
+
+      // --- RESPONSIVE ANPASSUNG ---
+      final screenWidth = MediaQuery.of(context).size.width;
+      final screenHeight = MediaQuery.of(context).size.height;
+      final orientation = MediaQuery.of(context).orientation;
+      // Basisgröße ist die Breite im Hochformat, aber die Höhe im Querformat
+      final referenceSize = orientation == Orientation.portrait ? screenWidth : screenHeight;
+      // Begrenzt die Bechergröße auf max. 300px und min. 200px
+      final maxSize = (referenceSize * 0.7).clamp(200.0, 300.0);
+
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.network( // Korrigiert zurück zu Image.network
+          Image.asset( // Korrigiert zurück zu Image.asset
             DiceAssetPaths.diceCupUrl,
-            width: 300,
-            height: 300,
+            width: maxSize,  // --- RESPONSIVE ANPASSUNG ---
+            height: maxSize, // --- RESPONSIVE ANPASSUNG ---
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.casino, size: 300, color: Colors.white),
+            errorBuilder: (_, __, ___) => Icon(Icons.casino, size: maxSize, color: Colors.white),
           ),
         ],
       );
@@ -399,8 +420,11 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   Widget _buildResultDisplay() {
     final titleStyle = const TextStyle(color: Colors.black, fontSize: 28, fontWeight: FontWeight.bold); // Angepasst
     final itemStyle = const TextStyle(color: Colors.black, fontSize: 22, fontWeight: FontWeight.bold); // Angepasst
-    final diceSize = MediaQuery.of(context).size.width * 0.12; // Angepasst
-    final double lidImageSize = 35.0; // Angepasst
+
+    // --- RESPONSIVE ANPASSUNG ---
+    final diceSize = MediaQuery.of(context).size.width * 0.12; // War schon responsiv
+    // Deckelgröße relativ zur Bildschirmbreite, mit min/max
+    final double lidImageSize = (MediaQuery.of(context).size.width * 0.08).clamp(30.0, 40.0);
 
     // Sortierte Spielerliste für die Anzeige holen
     List<MapEntry<String, SchockenScore>> sortedPlayerScores = _game.getSortedPlayerScores();
@@ -474,10 +498,10 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                         child: Align(
                           alignment: Alignment.center,
                           child: validLidIndex && lidAssetPath.isNotEmpty
-                              ? Image.network(
+                              ? Image.asset(
                             lidAssetPath,
-                            width: lidImageSize,
-                            height: lidImageSize,
+                            width: lidImageSize, // --- RESPONSIVE ANPASSUNG ---
+                            height: lidImageSize, // --- RESPONSIVE ANPASSUNG ---
                             errorBuilder: (_,__,___) => Icon(Icons.circle, size: lidImageSize * 0.6, color: Colors.grey[600]),
                           )
                               : Icon(Icons.circle, size: lidImageSize * 0.6, color: Colors.grey[600]),
@@ -511,16 +535,24 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   Widget _buildDiceArea() {
     // Greift auf _game.rollsLeft zu
     if (_game.rollsLeft == 3) {
-      return Image.network( // Korrigiert zurück zu Image.network
+
+      // --- RESPONSIVE ANPASSUNG --- (identisch zu _buildMainContentArea)
+      final screenWidth = MediaQuery.of(context).size.width;
+      final screenHeight = MediaQuery.of(context).size.height;
+      final orientation = MediaQuery.of(context).orientation;
+      final referenceSize = orientation == Orientation.portrait ? screenWidth : screenHeight;
+      final maxSize = (referenceSize * 0.7).clamp(200.0, 300.0);
+
+      return Image.asset( // Korrigiert zurück zu Image.asset
         DiceAssetPaths.diceCupUrl,
-        width: 300,
-        height: 300,
+        width: maxSize,  // --- RESPONSIVE ANPASSUNG ---
+        height: maxSize, // --- RESPONSIVE ANPASSUNG ---
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(Icons.casino, size: 300, color: Colors.white),
+        errorBuilder: (_, __, ___) => Icon(Icons.casino, size: maxSize, color: Colors.white),
       );
     }
 
-    final double diceSize = MediaQuery.of(context).size.width * 0.28;
+    final double diceSize = MediaQuery.of(context).size.width * 0.28; // War schon responsiv
 
     List<Widget> diceWidgets = List.generate(3, (index) {
       return SizedBox(
@@ -578,6 +610,13 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
   /// Baut einen Button mit neuem Styling (größer, kein Rand, Schatten)
   Widget _buildActionButton(String text, VoidCallback? onPressed, {bool isPrimary = false}) {
+
+    // --- RESPONSIVE ANPASSUNG ---
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Button-Breite relativ zur Bildschirmbreite, mit min/max
+    final double primaryWidth = (screenWidth * 0.7).clamp(240.0, 300.0);
+    final double secondaryWidth = (screenWidth * 0.4).clamp(150.0, 190.0);
+
     return Container( // Container für den Schatten
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8.0),
@@ -596,7 +635,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
           foregroundColor: Colors.black,
           backgroundColor: const Color(0xFFD9D9D9),
           disabledBackgroundColor: Colors.grey.shade400,
-          minimumSize: Size(isPrimary ? 280 : 170, 60), // GRÖSSERE BUTTONS
+          minimumSize: Size(isPrimary ? primaryWidth : secondaryWidth, 60), // --- RESPONSIVE ANPASSUNG ---
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8.0),
             // side: const BorderSide(color: Colors.black, width: 2), // RAND ENTFERNT
@@ -640,9 +679,16 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
   /// Baut den Inhalt des Scoreboards (jetzt mit schwarzen Textfarben etc.)
   Widget _buildScoreboardContent() {
-    const headerStyle = TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24); // Angepasst
-    const cellStyle = TextStyle(color: Colors.black, fontSize: 22); // Angepasst
-    final double lidImageSize = 40.0; // Angepasste Größe
+    const headerStyle = TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18); // Angepasst
+    const cellStyle = TextStyle(color: Colors.black, fontSize: 16); // Angepasst
+
+    // --- RESPONSIVE ANPASSUNG ---
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Deckelgröße relativ, mit min/max
+    final double lidImageSize = (screenWidth * 0.09).clamp(30.0, 45.0);
+    // Würfelgröße im Scoreboard relativ, mit min/max
+    final double diceSize = (screenWidth * 0.07).clamp(25.0, 35.0);
+
     Color currentHighlightColor = Colors.grey.shade300; // Highlight für aktuellen Spieler
 
     Widget verticalDivider() => Container(height: 25, width: 1.5, color: Colors.black26); // Angepasste Farbe
@@ -683,6 +729,8 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                     style: cellStyle.copyWith(
                       fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                     ),
+                    overflow: TextOverflow.ellipsis, // --- RESPONSIVE ANPASSUNG --- (Gut für lange Namen)
+                    maxLines: 1,
                   ),
                 ),
                 Expanded(
@@ -697,8 +745,8 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 2.0), // Weniger Abstand
                             child: SizedBox(
-                              width: 30, // Kleinere Würfel im Scoreboard
-                              height: 30 / DiceAssetDisplay.diceAspectRatio,
+                              width: diceSize, // --- RESPONSIVE ANPASSUNG ---
+                              height: diceSize / DiceAssetDisplay.diceAspectRatio, // --- RESPONSIVE ANPASSUNG ---
                               child: DiceAssetDisplay(value: displayValue),
                             ),
                           );
@@ -711,10 +759,10 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                   flex: 2,
                   child: Center(
                     child: lidCount > 0 && validLidIndex
-                        ? Image.network( // Image.network für lokale Dateien
+                        ? Image.asset( // Image.asset für lokale Dateien
                       lidAssetPath,
-                      width: lidImageSize,
-                      height: lidImageSize,
+                      width: lidImageSize, // --- RESPONSIVE ANPASSUNG ---
+                      height: lidImageSize, // --- RESPONSIVE ANPASSUNG ---
                       errorBuilder: (_,__,___) => Icon(Icons.circle, size: lidImageSize * 0.6, color: Colors.black54), // Angepasste Farbe
                     )
                         : Icon(Icons.circle_outlined, size: lidImageSize * 0.6, color: Colors.black54), // Angepasste Farbe
@@ -744,8 +792,11 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   Widget _buildInfoOverlay() {
     final titleStyle = const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold);
     final itemStyle = const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold);
-    final diceSize = MediaQuery.of(context).size.width * 0.12;
-    final double lidImageSize = 50.0; // Größe für Deckelbilder im Overlay
+
+    // --- RESPONSIVE ANPASSUNG ---
+    final diceSize = MediaQuery.of(context).size.width * 0.12; // War schon responsiv
+    // Deckelgröße relativ, mit min/max
+    final double lidImageSize = (MediaQuery.of(context).size.width * 0.1).clamp(40.0, 55.0);
 
     // Erzeugt eine Liste von Beispiel-Scores für die Anzeige
     List<SchockenScore> rankedCombinations = _getRankedCombinations();
@@ -801,25 +852,25 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
 
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12.0), // Mehr vertikaler Abstand
+                            padding: const EdgeInsets.symmetric(vertical: 4.0), // Mehr vertikaler Abstand
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 // Name der Kombination
                                 Expanded(
-                                    flex: 3, // Mehr Platz für den Namen
+                                    flex: 50, // Mehr Platz für den Namen
                                     child: Text(score.typeString, style: itemStyle, overflow: TextOverflow.ellipsis)
                                 ),
                                 // Deckel-Bild (eigene Spalte)
                                 SizedBox( // Feste Breite für die Deckelspalte
-                                  width: lidImageSize + 30, // Bildgröße + Padding
+                                  width: lidImageSize, // Bildgröße + Padding
                                   child: Align( // Zentriert das Bild
                                     alignment: Alignment.center,
                                     child: validLidIndex
-                                        ? Image.network( // Korrigiert zurück zu Image.network
+                                        ? Image.asset( // Korrigiert zurück zu Image.asset
                                       lidAssetPath,
-                                      width: lidImageSize,
-                                      height: lidImageSize,
+                                      width: lidImageSize, // --- RESPONSIVE ANPASSUNG ---
+                                      height: lidImageSize, // --- RESPONSIVE ANPASSUNG ---
                                       errorBuilder: (_,__,___) => Icon(Icons.circle, size: lidImageSize * 0.1, color: Colors.grey[600]),
                                     )
                                         : Icon(Icons.circle, size: lidImageSize * 0.1, color: Colors.grey[600]), // Fallback
@@ -831,7 +882,7 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                                   mainAxisSize: MainAxisSize.min,
                                   children: score.diceValues.map((diceValue) {
                                     return Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                                      padding: const EdgeInsets.symmetric(horizontal: 1.0),
                                       child: SizedBox(
                                         width: diceSize,
                                         height: diceSize / DiceAssetDisplay.diceAspectRatio,
@@ -886,4 +937,3 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
   }
 
 }
-

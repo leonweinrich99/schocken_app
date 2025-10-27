@@ -11,8 +11,8 @@ class GameSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        padding: const EdgeInsets.all(1),
-        constraints: const BoxConstraints(maxWidth: 475),
+        padding: const EdgeInsets.all(5),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -21,12 +21,12 @@ class GameSelectionScreen extends StatelessWidget {
             const Text(
               'WÜRFELN',
               style: TextStyle(
-                fontSize: 100, // Größer, um dem Design zu entsprechen
+                fontSize: 70, // Größer, um dem Design zu entsprechen
                 fontWeight: FontWeight.w900,
                 shadows: [
                   Shadow(
                     color: Colors.black, // Farbe des Schattens mit Deckkraft
-                    offset: Offset(13, 0),                // Horizontale (dx) und vertikale (dy) Verschiebung
+                    offset: Offset(10, 0),                // Horizontale (dx) und vertikale (dy) Verschiebung
                     blurRadius: 0,                       // Weichzeichner-Radius
                   ),
                 ],
@@ -124,7 +124,7 @@ class GameSelectionScreen extends StatelessWidget {
 
   /// Baut ein Würfel-Bild-Widget (ähnlich wie im InitialSplashScreen)
   Widget _buildDiceImage(int value) {
-    const double diceSize = 135.0; // Feste Größe für diesen Screen
+    const double diceSize = 125.0; // Feste Größe für diesen Screen
 
     // Stellt sicher, dass der Wert gültig ist
     if (value < 1 || value > 6) {

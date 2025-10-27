@@ -31,8 +31,14 @@ class _InitialSplashScreenState extends State<InitialSplashScreen> {
             const Text(
               'WÜRFELN',
               style: TextStyle(
-                fontSize: 100, // Sehr groß, wie im Bild
+                fontSize: 80, // Sehr groß, wie im Bild
                 fontWeight: FontWeight.w900,
+                shadows: [
+                  Shadow(
+                  color: Colors.black, // Farbe des Schattens mit Deckkraft
+                  offset: Offset(10, 0),                // Horizontale (dx) und vertikale (dy) Verschiebung
+                  blurRadius: 0,                       // Weichzeichner-Radius
+                  )],
                 color: Colors.white,
                 letterSpacing: 1,
               ),
