@@ -82,7 +82,7 @@ class DiceAssetDisplay extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: Image.network(
+            child: Image.asset(
               assetPath, // Verwende den ausgewählten Pfad
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
