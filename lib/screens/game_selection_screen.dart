@@ -11,66 +11,78 @@ class GameSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        padding: const EdgeInsets.all(1),
-        constraints: const BoxConstraints(maxWidth: 475),
+        padding: const EdgeInsets.all(5),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // --- Titel ---
-            const Text(
-              'WÜRFELN',
-              style: TextStyle(
-                fontSize: 100, // Größer, um dem Design zu entsprechen
-                fontWeight: FontWeight.w900,
-                shadows: [
-                  Shadow(
-                    color: Colors.black, // Farbe des Schattens mit Deckkraft
-                    offset: Offset(13, 0),                // Horizontale (dx) und vertikale (dy) Verschiebung
-                    blurRadius: 0,                       // Weichzeichner-Radius
-                  ),
-                ],
-                color: Colors.white,
-                letterSpacing: 1,
+            // --- Titel (jetzt responsiv) ---
+            FittedBox( // NEU: Skaliert den Text, damit er in die Breite passt
+              fit: BoxFit.contain, // Stellt sicher, dass der Text hineinpasst
+              child: const Text(
+                'WÜRFELN',
+                style: TextStyle(
+                  fontSize: 70, // Basis-Schriftgröße, wird von FittedBox skaliert
+                  fontWeight: FontWeight.w900,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black, // Farbe des Schattens mit Deckkraft
+                      offset: Offset(10, 0), // Offset skaliert mit der Schriftgröße
+                      blurRadius: 0, // Weichzeichner-Radius
+                    ),
+                  ],
+                  color: Colors.white,
+                  letterSpacing: 1,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
 
-            // --- Spiel-Buttons ---
-            _buildGameButton(
-              context,
-              title: 'SCHOCKEN',
-              mode: GameMode.schocken,
-              diceValue: 1, // Zeigt die '1' auf dem Würfel
-            ),
-            _buildGameButton(
-              context,
-              title: '42 / 18',
-              mode: GameMode.fourTwoEighteen,
-              diceValue: 2,
-            ),
-            _buildGameButton(
-              context,
-              title: 'MÄXCHEN',
-              mode: GameMode.maexchen, // Angenommen, es gibt diesen Modus
-              diceValue: 3,
-            ),
-            // --- Platzhalter-Buttons ---
-            _buildGameButton(
-              context,
-              diceValue: 4,
-              isDisabled: true,
-            ),
-            _buildGameButton(
-              context,
-              diceValue: 5,
-              isDisabled: true,
-            ),
-            _buildGameButton(
-              context,
-              diceValue: 6,
-              isDisabled: true,
+            // --- Spiel-Buttons (jetzt scrollbar) ---
+            Expanded( // NEU: Nimmt den restlichen Platz ein
+              child: SingleChildScrollView( // NEU: Macht die Liste scrollbar
+                child: Column( // NEU: Innere Spalte für die Buttons
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildGameButton(
+                      context,
+                      title: 'SCHOCKEN',
+                      mode: GameMode.schocken,
+                      diceValue: 1, // Zeigt die '1' auf dem Würfel
+                    ),
+                    _buildGameButton(
+                      context,
+                      title: '42 / 18',
+                      mode: GameMode.fourTwoEighteen,
+                      diceValue: 2,
+                    ),
+                    _buildGameButton(
+                      context,
+                      title: 'MÄXCHEN',
+                      mode: GameMode.maexchen, // Angenommen, es gibt diesen Modus
+                      diceValue: 3,
+                    ),
+                    // --- Platzhalter-Buttons ---
+                    _buildGameButton(
+                      context,
+                      diceValue: 4,
+                      isDisabled: true,
+                    ),
+                    _buildGameButton(
+                      context,
+                      diceValue: 5,
+                      isDisabled: true,
+                    ),
+                    _buildGameButton(
+                      context,
+                      diceValue: 6,
+                      isDisabled: true,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -124,7 +136,7 @@ class GameSelectionScreen extends StatelessWidget {
 
   /// Baut ein Würfel-Bild-Widget (ähnlich wie im InitialSplashScreen)
   Widget _buildDiceImage(int value) {
-    const double diceSize = 135.0; // Feste Größe für diesen Screen
+    const double diceSize = 125.0; // Feste Größe für diesen Screen
 
     // Stellt sicher, dass der Wert gültig ist
     if (value < 1 || value > 6) {
@@ -148,4 +160,3 @@ class GameSelectionScreen extends StatelessWidget {
     );
   }
 }
-
