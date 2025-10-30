@@ -164,25 +164,55 @@ class SchockenGame extends ChangeNotifier {
     }
   }
 
+  // --- NEUE handleDiceTap LOGIK ---
   void handleDiceTap(int index) {
-    if (_rollsLeft == 0) return; // Nicht nach dem letzten Wurf ändern
+    if (_rollsLeft == 0) return; // Kann nicht tappen, wenn keine Würfe mehr übrig sind
 
-    // Sonderregel: Zwei Sechsen -> Dritte Zahl wird zur Eins (wenn nicht schon 1)
-    final sixes = _currentDiceValues.where((v) => v == 6).toList();
-    if (sixes.length == 2) {
-      int thirdDieIndex = _currentDiceValues.indexWhere((v) => v != 6);
-      if (index == thirdDieIndex && _currentDiceValues[index] != 1) {
+    final int tappedValue = _currentDiceValues[index];
+    final int sixCount = _currentDiceValues.where((v) => v == 6).length;
+    final int oneCount = _currentDiceValues.where((v) => v == 1).length;
+
+    // --- A: Regel für 6er umdrehen ---
+    // Diese Logik wird NUR ausgeführt, wenn die Tapped-Value KEINE 1 ist.
+    if (tappedValue != 1) {
+      bool turned = false;
+
+      // Regel 1: 66X (X != 1 und X != 6) -> 661
+      // (sixCount == 2, oneCount == 0, tappedValue != 6)
+      if (sixCount == 2 && oneCount == 0 && tappedValue != 6) {
         _currentDiceValues[index] = 1;
+        turned = true;
+      }
+
+      // Regel 2: 661 -> 116 (oder 611)
+      // (sixCount == 2, oneCount == 1, tappedValue == 6)
+      else if (sixCount == 2 && oneCount == 1 && tappedValue == 6) {
+        _currentDiceValues[index] = 1;
+        turned = true;
+      }
+
+      // Regel 3: 666 -> 166 (oder 616 etc.)
+      // (sixCount == 3, oneCount == 0, tappedValue == 6)
+      else if (sixCount == 3 && oneCount == 0 && tappedValue == 6) {
+        _currentDiceValues[index] = 1;
+        turned = true;
+      }
+      // Der Fall 166 -> 116 wird automatisch von Regel 2 abgedeckt.
+
+      if (turned) {
+        // Wenn ein Würfel umgedreht wurde, MUSS er gehalten werden.
         if (!_heldDiceIndices.contains(index)) {
-          _heldDiceIndices.add(index); // Die 1 sofort halten
+          _heldDiceIndices.add(index);
         }
         notifyListeners();
-        return; // Aktion beendet
+        return; // Aktion (Umdrehen) ist abgeschlossen
       }
     }
 
-    // Normales Halten/Lösen (nur bei Einsern)
-    if (_currentDiceValues[index] == 1) {
+    // --- B: Normales Halten/Lösen von Einsern ---
+    // Diese Logik wird NUR ausgeführt, wenn die Tapped-Value eine 1 ist
+    // ODER wenn keine "Umdreh-Regel" (A) gegriffen hat.
+    if (tappedValue == 1) {
       if (_heldDiceIndices.contains(index)) {
         _heldDiceIndices.remove(index);
       } else {
@@ -190,7 +220,10 @@ class SchockenGame extends ChangeNotifier {
       }
       notifyListeners();
     }
+
+    // Wenn eine 2-5 getippt wurde und keine Regel gegriffen hat, passiert nichts.
   }
+  // --- ENDE NEUE handleDiceTap LOGIK ---
 
 
   void endTurn(bool isForced) {
