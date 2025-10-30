@@ -65,12 +65,13 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
   GameMode? _selectedGameAfterSplash;
   List<String> _players = ['Spieler 1']; // Startet jetzt mit leerer Liste oder Standard
 
-  /// Diese Funktion startet jetzt den PlayerEntryScreen für Schocken, sonst VideoSplash
+  /// Diese Funktion startet jetzt den PlayerEntryScreen für Schocken UND 42/18
   void _selectGame(GameMode mode) {
     setState(() {
-      if (mode == GameMode.schocken) { // Nur bei Schocken zur Spielereingabe
+      // Spiele, die eine Spielereingabe benötigen
+      if (mode == GameMode.schocken || mode == GameMode.fourTwoEighteen) { // HIER HINZUGEFÜGT
         _currentGameMode = GameMode.playerEntry;
-        _selectedGameAfterSplash = mode; // Merken, dass Schocken gestartet werden soll
+        _selectedGameAfterSplash = mode; // Merken, welches Spiel gestartet werden soll
       } else { // Für andere Spiele direkt zum Video
         _selectedGameAfterSplash = mode;
         _currentGameMode = GameMode.videoSplash;
@@ -83,7 +84,7 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
     setState(() {
       _players = playerNames; // Spielerliste aktualisieren
       _currentGameMode = GameMode.videoSplash; // Video starten
-      // _selectedGameAfterSplash sollte hier bereits gesetzt sein (z.B. auf schocken)
+      // _selectedGameAfterSplash sollte hier bereits gesetzt sein (z.B. auf schocken oder fourTwoEighteen)
     });
   }
 
@@ -150,6 +151,7 @@ class _GameWrapperScreenState extends State<GameWrapperScreen> {
         );
         break;
       case GameMode.maexchen:
+      //TODO: Mäxchen implementieren
         currentScreen = GameSelectionScreen(onGameSelected: _selectGame);
         break;
       case GameMode.selection:

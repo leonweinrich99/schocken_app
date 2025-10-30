@@ -112,6 +112,13 @@ class _PlayerEntryScreenState extends State<PlayerEntryScreen> {
       color: Colors.white,
       fontSize: 48,
       fontWeight: FontWeight.w900,
+      shadows: [
+        Shadow(
+          color: Colors.black, // Farbe des Schattens mit Deckkraft
+          offset: Offset(8, 0), // Offset skaliert mit der Schriftgröße
+          blurRadius: 0, // Weichzeichner-Radius
+        ),
+      ],
     );
 
     return Scaffold(

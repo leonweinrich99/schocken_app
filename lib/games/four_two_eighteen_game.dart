@@ -7,7 +7,6 @@ class FourTwoEighteenGameWidget extends StatefulWidget {
   final List<String> players;
   final VoidCallback onGameExit;
 
-  // Removed const from constructor
   const FourTwoEighteenGameWidget({super.key, required this.players, required this.onGameExit});
 
   @override
@@ -17,6 +16,8 @@ class FourTwoEighteenGameWidget extends StatefulWidget {
 class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
   late FourTwoEighteenGame _game;
   bool _isInfoOverlayVisible = false;
+  // NEU: Cache für die Ergebnisse der letzten Runde
+  Map<String, FourTwoEighteenScore> _lastRoundResults = {};
 
   @override
   void initState() {
@@ -33,17 +34,24 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
   }
 
   void _onGameStateChanged() {
+    // UI-Aktualisierung erzwingen
     setState(() {
-      // Show round resolution dialog
+      // Dialog-Logik
       if (_game.isRoundOver && !_game.isGameOver && !_isInfoOverlayVisible && mounted) {
+        // KORREKTUR: Ergebnisse hier cachen, BEVOR der Dialog angezeigt wird
+        // (da sie nach dem Dialog durch startNextRound() gelöscht werden)
+        _lastRoundResults = Map.from(_game.roundResults);
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _game.isRoundOver && !_game.isGameOver) {
             _showRoundResolutionDialog();
           }
         });
       }
-      // Show game over dialog
       else if (_game.isGameOver && !_isInfoOverlayVisible && mounted) {
+        // KORREKTUR: Ergebnisse auch hier cachen
+        _lastRoundResults = Map.from(_game.roundResults);
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _game.isGameOver) {
             _showGameOverDialog();
@@ -53,8 +61,7 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
     });
   }
 
-
-  // --- UI Build Methoden (Design von Schocken übernommen) ---
+  // --- UI Build Methoden ---
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +91,7 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                         alignment: Alignment.centerLeft,
                         child: IconButton(
                           icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
-                          onPressed: widget.onGameExit, // Keep exit functionality
+                          onPressed: widget.onGameExit,
                         ),
                       ),
                       Align(
@@ -105,26 +112,37 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                     ],
                   ),
                 ),
-                // 2. HAUPTBEREICH (flexible to allow Scoreboard visibility)
-                Expanded( // Use Expanded instead of Flexible
-                  child: SingleChildScrollView( // Make content scrollable if needed
-                    padding: const EdgeInsets.only(top: 50.0, left: 16.0, right: 16.0, bottom: 10.0), // Reduced padding
-                    child: _buildMainContentArea(),
-                  ),
+                const SizedBox(height: 40),
+                // 2. HAUPTBEREICH (Brett) + BUTTONS (Jetzt in Expanded, wie bei Schocken)
+                Expanded(
+                    child: Column(
+                      children: [
+                        // Brett (nimmt den meisten Platz ein)
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
+                            child: _buildMainContentArea(),
+                          ),
+                        ),
+
+                        // Button-Bereich (unter dem Brett)
+                        if (!_game.isGameOver) _buildButtonArea(),
+                        if (_game.isGameOver) _buildRestartButtonArea(),
+                      ],
+                    )
                 ),
-                // 3. BUTTON-BEREICH
-                // Only show buttons if game is not over
-                if (!_game.isGameOver) _buildButtonArea(),
-                // Show restart button if game is over
-                if (_game.isGameOver) _buildRestartButtonArea(),
-                // 4. SCOREBOARD (Always visible at the bottom)
-                _buildScoreboardContainer(), // Moved outside Expanded/Flexible
+
+                // 3. SCOREBOARD (Außerhalb Expanded, unten, scrollbar)
+                SingleChildScrollView( // Ermöglicht das Scrollen des Scoreboards bei vielen Spielern
+                  child: _buildScoreboardContainer(),
+                ),
               ],
             ),
 
-            // Removed floating status indicators
+            // 5. STATUS-INDIKATOREN (ENTFERNT)
 
-            // INFO-OVERLAY
+            // 6. INFO-OVERLAY
             if (_isInfoOverlayVisible) _buildInfoOverlay(),
           ],
         ),
@@ -132,23 +150,21 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
     );
   }
 
-  // Removed _buildGameStatusIndicators()
-
-
   Widget _buildMainContentArea() {
+// ... (Rest der Datei bleibt gleich) ...
     // Zeige Würfelbecher beim ersten Wurf
-    if (_game.rollsLeft == 3 && !_game.isRoundOver && !_game.isGameOver) {
+    if (_game.rollCount == 0 && !_game.isRoundOver && !_game.isGameOver) {
       final screenWidth = MediaQuery.of(context).size.width;
       final screenHeight = MediaQuery.of(context).size.height;
       final orientation = MediaQuery.of(context).orientation;
       final referenceSize = orientation == Orientation.portrait ? screenWidth : screenHeight;
-      // Make cup slightly smaller to give more space for the board below
+      // Brett verkleinert, daher Becher auch etwas kleiner
       final maxSize = (referenceSize * 0.6).clamp(180.0, 250.0);
 
       return Column(
-        mainAxisAlignment: MainAxisAlignment.center, // Center the cup vertically
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(height: MediaQuery.of(context).size.height * 0.05), // Add some top spacing
+          SizedBox(height: MediaQuery.of(context).size.height * 0.02), // Abstand oben reduziert
           Image.asset(
             DiceAssetPaths.diceCupUrl,
             width: maxSize,
@@ -156,17 +172,15 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
             fit: BoxFit.contain,
             errorBuilder: (_, __, ___) => Icon(Icons.casino, size: maxSize, color: Colors.white),
           ),
-          // Adjust spacing below cup dynamically or remove if not needed
-          SizedBox(height: MediaQuery.of(context).size.height * 0.05),
+          SizedBox(height: MediaQuery.of(context).size.height * 0.05), // Abstand unten reduziert
         ],
       );
     } else if (_game.isGameOver) {
-      // Display winner message in the main area when game is over
       return Center(
-        child: Padding( // Add padding around the game over text
+        child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 50.0),
           child: Text(
-            _game.gameStatusMessage, // Shows the winner message from logic
+            _game.gameStatusMessage, // Zeigt Gewinner
             style: const TextStyle(
                 color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
@@ -176,86 +190,81 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
     }
 
     // Zeige Drag-and-Drop-Bereich
-    return _buildDiceArea(); // Removed size argument, will calculate inside
+    return _buildDiceArea(); // Verwendet das "Brett"-Design
   }
 
   Widget _buildButtonArea() {
-    final buttonPadding = EdgeInsets.only(bottom: 15.0, top: 5.0); // Reduced padding
-    final resultStyle = TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold); // Slightly smaller
+    final buttonPadding = const EdgeInsets.only(bottom: 15.0, top: 5.0);
+    // final resultStyle = const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold); // Entfernt
 
-    // Wenn Runde vorbei ist (Dialog wird angezeigt), keinen Button zeigen
-    if (_game.isRoundOver) {
-      return SizedBox(height: 70); // Placeholder height approx button + text
+    // Button-Logik basierend auf den neuen Regeln
+    final int currentHeldCount = _game.heldDiceCount;
+    // Kann würfeln, wenn: noch nicht 5 liegen UND (es der 1. Wurf ist ODER man seit dem letzten Wurf einen abgelegt hat)
+    final bool canRoll = currentHeldCount < 5 &&
+        (_game.rollCount == 0 || currentHeldCount > _game.diceHeldBeforeRoll);
+
+    String buttonText;
+    VoidCallback? onPressed;
+
+    // KORREKTUR: Logik für den "ZUG BEENDEN" Button, wenn 4 & 2 fehlen
+    if (currentHeldCount < 5 && !canRoll && !_game.canStillGetBasis()) {
+      // Spieler kann nicht mehr würfeln (hat nichts abgelegt)
+      // UND kann die Basis nicht mehr bekommen (z.B. 4 & 2 sind nicht bei den unheld dice)
+      // UND die Basis ist noch nicht voll.
+      buttonText = 'ZUG BEENDEN';
+      onPressed = _game.endTurn; // Erlaube das Beenden des Zugs
     }
-
-
-    // Wenn Runde läuft
-    Widget buttonWidget;
-
-    if (_game.rollsLeft == 3) {
-      buttonWidget = _buildActionButton('WÜRFELN', _game.roll, isPrimary: true);
+    else if (currentHeldCount == 5) {
+      buttonText = 'ZUG BEENDET';
+      onPressed = null; // Zug endet automatisch
+    } else if (canRoll) {
+      buttonText = 'NOCHMAL'; // Zähler entfernt
+      onPressed = _game.roll;
     } else {
-      buttonWidget = Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildActionButton('LASSEN', _game.endTurn),
-          _buildActionButton(
-              'NOCHMAL (${_game.rollsLeft})',
-              _game.rollsLeft > 0 ? _game.roll : null // Deaktiviert, wenn keine Würfe mehr
-          ),
-        ],
-      );
+      buttonText = 'ABLEGEN!'; // Aufforderung, 1 Würfel abzulegen
+      onPressed = null; // Deaktiviert, bis abgelegt wurde
     }
-
-    // Determine current score text
-    String currentScoreText = _game.gameStatusMessage; // Default to status message
-    if (_game.rollsLeft < 3 && _game.basisFound && _game.allScoreDiceHeld) {
-      currentScoreText = 'Aktuell: ${_game.scoreDice} / 18';
-    } else if (_game.rollsLeft < 3 && _game.basisFound && !_game.allScoreDiceHeld) {
-      currentScoreText = 'Punkte würfeln...';
-    } else if (_game.rollsLeft < 3 && !_game.basisFound) {
-      currentScoreText = 'Basis 4 & 2 suchen...';
-    }
-
 
     return Padding(
       padding: buttonPadding,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Show current score or status message during the turn
-          // Only show specific score/status text if not the first roll
-          if (_game.rollsLeft < 3)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10.0), // Reduced bottom padding
-              child: Text(
-                  currentScoreText,
-                  style: resultStyle,
-                  textAlign: TextAlign.center
-              ),
-            )
-          // If it's the first roll, show the current player status instead
-          else if (_game.rollsLeft == 3)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10.0), // Reduced bottom padding
-              child: Text(
-                  _game.gameStatusMessage, // Shows "Player X ist dran."
-                  style: resultStyle,
-                  textAlign: TextAlign.center
-              ),
+          // Status-Text über dem Button entfernt
+          // Padding(
+          //   padding: const EdgeInsets.only(bottom: 10.0),
+          //   child: Text(
+          //     _game.gameStatusMessage,
+          //     style: resultStyle,
+          //     textAlign: TextAlign.center
+          //   ),
+          // ),
+          const SizedBox(height: 20), // Platzhalter für entfernten Text
+          // Nur noch ein zentrierter Button
+          Center(
+            child: _buildActionButton(
+                buttonText,
+                onPressed,
+                isPrimary: true // Immer Primär-Button-Stil
             ),
-          buttonWidget,
+          ),
         ],
       ),
     );
   }
 
-  // New button area specifically for the restart button
   Widget _buildRestartButtonArea() {
-    final buttonPadding = EdgeInsets.only(bottom: 15.0, top: 5.0); // Consistent padding
+    final buttonPadding = const EdgeInsets.only(bottom: 15.0, top: 5.0);
     return Padding(
       padding: buttonPadding,
-      child: _buildActionButton('NEU STARTEN', _game.restartGame, isPrimary: true),
+      // Platzhalter hinzugefügt, damit Button auf gleicher Höhe wie Spiel-Button ist
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 20),
+          _buildActionButton('NEU STARTEN', _game.restartGame, isPrimary: true),
+        ],
+      ),
     );
   }
 
@@ -263,9 +272,9 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
   /// Baut einen Button im Schocken-Stil
   Widget _buildActionButton(String text, VoidCallback? onPressed, {bool isPrimary = false}) {
     final screenWidth = MediaQuery.of(context).size.width;
-    // Adjust button widths slightly
+    // Breite angepasst für einen einzelnen Button
     final double primaryWidth = (screenWidth * 0.65).clamp(220.0, 280.0);
-    final double secondaryWidth = (screenWidth * 0.4).clamp(140.0, 180.0);
+    final double secondaryWidth = (screenWidth * 0.4).clamp(140.0, 180.0); // Beibehalten, falls benötigt
 
     return Container(
       decoration: BoxDecoration(
@@ -285,155 +294,150 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
           foregroundColor: Colors.black,
           backgroundColor: const Color(0xFFD9D9D9),
           disabledBackgroundColor: Colors.grey.shade400,
-          minimumSize: Size(isPrimary ? primaryWidth : secondaryWidth, 55), // Slightly smaller height
+          minimumSize: Size(isPrimary ? primaryWidth : secondaryWidth, 55),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8.0),
           ),
           elevation: 0,
         ),
-        child: FittedBox( // Stellt sicher, dass Text in den Button passt
+        child: FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22)), // Slightly smaller font
+          child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
         ),
       ),
     );
   }
 
-  // --- Drag & Drop UI ---
+  // --- Drag & Drop UI (Brett-Design aus User-Snippet) ---
 
   Widget _buildDiceArea() {
-    // Styling for the slots (like Schocken Scoreboard items)
+    // Styling für die Slots (angepasst an User-Snippet + Hellgrau)
     final slotDecoration = BoxDecoration(
-      color: Colors.white, // White background for empty slots
+      color: const Color(0xFFEEEEEE), // HELLGRAU (wie gewünscht)
       borderRadius: BorderRadius.circular(8.0),
-      boxShadow: const [
-        BoxShadow( color: Colors.black, spreadRadius: 0, blurRadius: 0, offset: Offset(3, 4)),
-      ],
-      border: Border.all(color: Colors.black54, width: 1), // Subtle border like scoreboard
+      border: Border.all(color: Colors.black26, width: 1), // Dezenter Rand
     );
     final slotDecorationOccupied = BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8.0),
-        boxShadow: const [ // Keep shadow when occupied
-          BoxShadow( color: Colors.black, spreadRadius: 0, blurRadius: 0, offset: Offset(3, 4)),
-        ],
-        border: Border.all(color: Colors.black, width: 2) // Keep border when occupied
+        border: Border.all(color: Colors.black, width: 2)
     );
 
-    // Style for the number inside the empty slot
-    final highlightLabelStyle = TextStyle(
-        color: Colors.black.withOpacity(0.6), // Darker, less prominent
-        fontSize: 36, // Larger font size for the number
-        fontWeight: FontWeight.w900 // Bold
-    );
-    // Style for the "..." placeholder
-    final slotLabelStyle = TextStyle(
-        color: Colors.black.withOpacity(0.4), // Even less prominent
-        fontSize: 24,
-        fontWeight: FontWeight.bold
-    );
+    // Style für die "4" und "2" (ENTFERNT)
+    // final highlightLabelStyle = ...
+    // Style for "..." (ENTFERNT)
+    // final slotLabelStyle = ...
 
-
-    // Responsive size for active dice
-    final activeDiceSize = (MediaQuery.of(context).size.width / 5.5).clamp(55.0, 75.0); // Make dice slightly larger
 
     return Column(
       children: [
-        // 1. Ablageflächen (Basis 42 und Score 18) - Reordered like Schocken
-        // Score 18 Sektion (Top Row)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (index) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5.0),
-              child: _buildDragTargetSlot(
-                targetType: HoldPosition.score,
-                requiredValue: null, // No specific value required
-                heldIndices: _game.scoreDice,
-                indexInArray: index,
-                decoration: slotDecoration,
-                occupiedDecoration: slotDecorationOccupied,
-                labelStyle: slotLabelStyle,
-                highlightLabelStyle: highlightLabelStyle, // Not used here, but pass anyway
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 30), // Space between rows
-
-        // Basis 42 Sektion (Bottom Row)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildDragTargetSlot(
-              targetType: HoldPosition.basis4,
-              requiredValue: 4, // Indicate required value
-              heldIndices: _game.basisDice,
-              indexInArray: 0,
-              decoration: slotDecoration,
-              occupiedDecoration: slotDecorationOccupied,
-              labelStyle: slotLabelStyle, // Not used here
-              highlightLabelStyle: highlightLabelStyle,
-            ),
-            const SizedBox(width: 15), // Space between basis slots
-            _buildDragTargetSlot(
-              targetType: HoldPosition.basis2,
-              requiredValue: 2, // Indicate required value
-              heldIndices: _game.basisDice,
-              indexInArray: 1,
-              decoration: slotDecoration,
-              occupiedDecoration: slotDecorationOccupied,
-              labelStyle: slotLabelStyle, // Not used here
-              highlightLabelStyle: highlightLabelStyle,
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 50), // Increased space before active dice
-
-        // 2. Aktive Würfel (Draggable) - Horizontal Layout
-        // Label removed, implied by position
-        // const Text('Aktive Würfel:', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        // const SizedBox(height: 15),
-
-        // Wrap ensures dice flow to next line if needed, centered
+        // 1. Ablageflächen (Weißer Kasten)
         Container(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.9), // Limit width
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10), // Padding reduziert
+          decoration: BoxDecoration(
+            color: Colors.white, // Weißer Kasten
+            borderRadius: BorderRadius.circular(12.0),
+            boxShadow: const [
+              BoxShadow(color: Colors.black, spreadRadius: 0, blurRadius: 0, offset: Offset(5, 7)),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Basis 42 Sektion (Oben) - TEXT ENTFERNT
+              // const Text("BASIS", ...),
+              // const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildDragTargetSlot(
+                    targetType: HoldPosition.basis4,
+                    requiredValue: 4, // Zeigt '4'
+                    heldIndices: _game.basisDice,
+                    indexInArray: 0,
+                    decoration: slotDecoration,
+                    occupiedDecoration: slotDecorationOccupied,
+                    labelStyle: const TextStyle(), // Ignoriert
+                    highlightLabelStyle: const TextStyle(), // Ignoriert
+                  ),
+                  const SizedBox(width: 10), // Abstand reduziert
+                  _buildDragTargetSlot(
+                    targetType: HoldPosition.basis2,
+                    requiredValue: 2, // Zeigt '2'
+                    heldIndices: _game.basisDice,
+                    indexInArray: 1,
+                    decoration: slotDecoration,
+                    occupiedDecoration: slotDecorationOccupied,
+                    labelStyle: const TextStyle(), // Ignoriert
+                    highlightLabelStyle: const TextStyle(), // Ignoriert
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10), // Abstand reduziert
+              // Score 18 Sektion (Unten) - TEXT ENTFERNT
+              // Text(...),
+              // const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(3, (index) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0), // Abstand reduziert
+                    child: _buildDragTargetSlot(
+                      targetType: HoldPosition.score,
+                      requiredValue: null, // Zeigt nichts
+                      heldIndices: _game.scoreDice,
+                      indexInArray: index,
+                      decoration: slotDecoration,
+                      occupiedDecoration: slotDecorationOccupied,
+                      labelStyle: const TextStyle(), // Ignoriert
+                      highlightLabelStyle: const TextStyle(), // Ignoriert
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20), // Abstand reduziert
+
+        // 2. Aktive Würfel (Draggable)
+        Container(
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.9),
           child: Wrap(
             alignment: WrapAlignment.center,
-            spacing: 10.0, // Horizontal space
-            runSpacing: 10.0, // Vertical space if wrapping occurs
+            spacing: 8.0, // Abstand reduziert
+            runSpacing: 8.0, // Abstand reduziert
             children: List.generate(_game.currentDiceValues.length, (index) {
               final value = _game.currentDiceValues[index];
               final isHeld = _game.diceHeld[index];
+              // Größe der Würfel angepasst an kleinere Slots
+              final diceSize = (MediaQuery.of(context).size.width * 0.18).clamp(55.0, 70.0);
 
               if (isHeld) {
-                return const SizedBox.shrink(); // Hide held dice
+                return const SizedBox.shrink(); // Gehaltene Würfel nicht hier anzeigen
               }
 
-              // Make Draggable items have consistent size
               return SizedBox(
-                width: activeDiceSize,
-                height: activeDiceSize / DiceAssetDisplay.diceAspectRatio,
+                width: diceSize,
+                height: diceSize / DiceAssetDisplay.diceAspectRatio, // Seitenverhältnis beibehalten
                 child: Draggable<int>(
                   data: index,
-                  feedback: Opacity( // Make feedback semi-transparent
+                  feedback: Opacity(
                     opacity: 0.7,
                     child: SizedBox(
-                      width: activeDiceSize,
-                      height: activeDiceSize / DiceAssetDisplay.diceAspectRatio,
-                      child: DiceAssetDisplay(value: value, isHeld: true),
+                      width: diceSize,
+                      height: diceSize / DiceAssetDisplay.diceAspectRatio,
+                      child: DiceAssetDisplay(value: value, isHeld: true), // Feedback hervorheben
                     ),
                   ),
-                  childWhenDragging: SizedBox( // Keep space, but make it less visible
-                    width: activeDiceSize,
-                    height: activeDiceSize / DiceAssetDisplay.diceAspectRatio,
-                    // child: Opacity(opacity: 0.3, child: DiceAssetDisplay(value: value)),
+                  childWhenDragging: SizedBox( // Leerer Platz
+                    width: diceSize,
+                    height: diceSize / DiceAssetDisplay.diceAspectRatio,
                   ),
-                  child: DiceAssetDisplay( // The actual draggable dice
+                  child: DiceAssetDisplay(
                     value: value,
-                    isHeld: isHeld, // Should be false here
-                    onTap: null, // Drag only
+                    isHeld: isHeld,
+                    onTap: null, // Drag statt Tap
                   ),
                 ),
               );
@@ -445,63 +449,90 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
   }
 
 
-  // Einzelner DragTarget Slot (Angepasst für neues Design)
+  // Einzelner DragTarget Slot (Logik angepasst)
   Widget _buildDragTargetSlot({
     required HoldPosition targetType,
     int? requiredValue,
     required List<int?> heldIndices,
     required int indexInArray,
-    required BoxDecoration decoration,        // Style for empty slot
-    required BoxDecoration occupiedDecoration, // Style for occupied slot
-    required TextStyle labelStyle,           // Style for "..."
-    required TextStyle highlightLabelStyle,  // Style for "4" or "2"
+    required BoxDecoration decoration,
+    required BoxDecoration occupiedDecoration,
+    required TextStyle labelStyle,
+    required TextStyle highlightLabelStyle,
   }) {
     final diceIndex = heldIndices[indexInArray];
     final isOccupied = diceIndex != null;
     final value = isOccupied ? _game.currentDiceValues[diceIndex] : null;
 
-    final double slotSize = (MediaQuery.of(context).size.width * 0.22).clamp(70.0, 90.0); // Slightly larger slots
+    // Responsive Größe (VERKLEINERT)
+    final double slotSize = (MediaQuery.of(context).size.width * 0.18).clamp(55.0, 70.0); // Angepasst an Würfelgröße
 
     return DragTarget<int>(
+      // KORRIGIERTE onWillAccept Logik
       onWillAcceptWithDetails: (data) {
         final diceValue = _game.currentDiceValues[data.data];
-        if (requiredValue != null && diceValue != requiredValue) return false;
-        if (targetType == HoldPosition.score && !_game.basisFound) return false;
-        return !isOccupied;
+        if (isOccupied) return false; // Slot muss frei sein
+
+        // Basis-Slots sind exklusiv
+        if (targetType == HoldPosition.basis4) return diceValue == 4;
+        if (targetType == HoldPosition.basis2) return diceValue == 2;
+
+        // Score-Slots (unten)
+        if (targetType == HoldPosition.score) {
+          // Wenn es eine 4 ist, prüfe ob der Basis-4-Slot (oben) frei ist
+          if (diceValue == 4 && _game.basisDice[0] == null) {
+            return false; // Du musst die 4 erst oben reinlegen
+          }
+          // Wenn es eine 2 ist, prüfe ob der Basis-2-Slot (oben) frei ist
+          if (diceValue == 2 && _game.basisDice[1] == null) {
+            return false; // Du musst die 2 erst oben reinlegen
+          }
+          // Alle anderen (1,3,5,6) sind OK,
+          // und 4/2 sind auch OK, wenn ihre Basis-Slots schon voll sind.
+          return true;
+        }
+
+        return false;
       },
       onAccept: (diceIndex) {
         _game.setHeldDice(diceIndex, targetType);
       },
       builder: (context, candidateData, rejectedData) {
-        bool canAccept = candidateData.isNotEmpty;
+        bool canAccept = candidateData.isNotEmpty; // Nur für Highlight
 
         return GestureDetector(
-          onTap: isOccupied ? () => _game.releaseHeldDice(diceIndex!) : null,
+          onTap: isOccupied ? () => _game.releaseHeldDice(diceIndex!) : null, // Freigeben durch Antippen
           child: Container(
             width: slotSize,
-            height: slotSize / DiceAssetDisplay.diceAspectRatio, // Use dice aspect ratio for slot height
-            decoration: isOccupied ? occupiedDecoration : decoration.copyWith(
-              // Highlight background slightly when draggable hovers
-              color: canAccept ? Colors.white.withOpacity(0.9) : Colors.white,
+            height: slotSize, // Quadratische Slots
+            decoration: isOccupied
+                ? occupiedDecoration
+                : decoration.copyWith( // Leerer Slot (Hellgrau)
+              color: canAccept ? Colors.grey.shade300 : const Color(0xFFEEEEEE), // Dunkler bei Hover
               border: Border.all(
-                  color: canAccept ? Colors.black : Colors.black54, // Darker border on hover
+                  color: canAccept ? Colors.black : Colors.black26,
                   width: canAccept ? 2 : 1),
             ),
-            // Clip content to rounded corners
             clipBehavior: Clip.antiAlias,
             child: isOccupied
                 ? Center(
               child: SizedBox(
-                // Make dice fit exactly into the slot dimensions
-                width: slotSize,
-                height: slotSize / DiceAssetDisplay.diceAspectRatio,
+                width: slotSize * 0.9,
+                height: (slotSize * 0.9) / DiceAssetDisplay.diceAspectRatio,
                 child: DiceAssetDisplay(value: value!),
               ),
             )
-                : Center( // Display required value or "..."
+                : Center( // Zeigt "4", "2" (ausgegraut) oder "..."
               child: requiredValue != null
-                  ? Text(requiredValue.toString(), style: highlightLabelStyle)
-                  : Text('...'),
+                  ? Opacity( // JA: Zeige ausgegrauten Würfel
+                opacity: 0.2, // Stark ausgegraut
+                child: SizedBox(
+                  width: slotSize * 0.9,
+                  height: (slotSize * 0.9) / DiceAssetDisplay.diceAspectRatio,
+                  child: DiceAssetDisplay(value: requiredValue),
+                ),
+              )
+                  : Container(), // NEIN: Zeige nichts (nur hellgrauen Hintergrund)
             ),
           ),
         );
@@ -509,14 +540,11 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
     );
   }
 
-
-  // --- Scoreboard (Design von Schocken, angepasst für "Leben") ---
+  // --- Scoreboard (Angepasst für "Leben") ---
 
   Widget _buildScoreboardContainer() {
-    // Scoreboard remains visible even when game is over to show final state
-
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0), // Added vertical margin
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12.0),
@@ -529,18 +557,19 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0), // Adjusted padding
+      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
       child: _buildScoreboardContent(),
     );
   }
 
   Widget _buildScoreboardContent() {
-    final headerStyle = TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16); // Smaller header
-    final cellStyle = TextStyle(color: Colors.black, fontSize: 14); // Smaller cell text
+    // --- ÄNDERUNGEN HIER ---
+    final headerStyle = TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16);
+    final cellStyle = TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold); // Namen jetzt fett und schwarz
+    final scoreStyle = TextStyle(color: Colors.black54, fontSize: 14, fontWeight: FontWeight.normal); // Score normal und grau
     Color currentHighlightColor = !_game.isGameOver ? Colors.grey.shade300 : Colors.transparent;
-    final double heartSize = 20.0; // Smaller hearts
+    final double heartSize = 20.0;
 
-    // Find the minimum number of lives any active player has
     int minLives = _game.initialLives;
     _game.playerLives.forEach((player, lives) {
       if(lives > 0 && lives < minLives) {
@@ -548,65 +577,99 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
       }
     });
 
+    // KORREKTUR: Logik zur Anzeige der Ergebnisse
+    // WÄHREND die Runde läuft, werden die Scores in _game.roundResults gesammelt.
+    // WENN die Runde endet, werden sie in _lastRoundResults gecacht.
+    // WENN die nächste Runde startet, ist _game.roundResults leer.
+    // Wir müssen also _game.roundResults priorisieren (für Spieler, die schon dran waren)
+    // und auf _lastRoundResults zurückfallen (für Spieler, die noch nicht dran waren).
 
     return Column(
-      mainAxisSize: MainAxisSize.min, // Take only needed height
+      mainAxisSize: MainAxisSize.min, // Nimmt nur die Höhe ein, die es braucht
       children: [
         Row(
           children: [
-            Expanded(flex: 5, child: Text('SPIELER', style: headerStyle)),
-            Expanded(flex: 3, child: Center(child: Text('LEBEN', style: headerStyle))), // Changed header
+            Expanded(flex: 4, child: Text('SPIELER', style: headerStyle)), // Mehr Platz für Spieler
+            Expanded(flex: 3, child: Center(child: Text('WURF', style: headerStyle))), // Neuer Header: WURF
+            Expanded(flex: 3, child: Center(child: Text('LEBEN', style: headerStyle))), // Weniger Platz für Leben
           ],
         ),
-        const Divider(color: Colors.black54, thickness: 1.5), // Thinner divider
+        const Divider(color: Colors.black54, thickness: 1.5),
 
-        // Use LayoutBuilder to constrain height if necessary, or keep flexible
-        // Flexible( // Removed Flexible, Column uses MainAxisSize.min now
-        //   child: ListView.builder(
-        //      shrinkWrap: true, // Allow ListView to size itself
-        //      itemCount: widget.players.length,
-        //      itemBuilder: (context, index) {
-
-        // Use Column + map for non-scrolling list if player number is small
         ...List.generate(widget.players.length, (index) {
           final playerName = widget.players[index];
           final isCurrent = index == _game.currentPlayerIndex && !_game.isRoundOver && !_game.isGameOver;
           final livesCount = _game.playerLives[playerName] ?? 0;
           final bool isEliminated = livesCount <= 0;
-          // Highlight player if they have the minimum number of lives (and are not eliminated)
           final bool isLowestLife = !isEliminated && livesCount == minLives && !_game.isGameOver;
+
+          // KORREKTUR: Logik zur Anzeige des Scores
+          final scoreDataThisRound = _game.roundResults[playerName];
+          final scoreDataLastRound = _lastRoundResults[playerName];
+
+          String scoreDisplay = "---"; // Standard
+          String scoreColorHex = "Colors.black54"; // Standardfarbe
+          Color scoreColor = Colors.black54;
+
+
+          if (isCurrent) {
+            scoreDisplay = (_game.rollCount > 0) ? "..." : "---";
+          } else if (scoreDataThisRound != null) {
+            // Spieler war in DIESER Runde schon dran (Runde ist vielleicht noch nicht vorbei)
+            scoreDisplay = scoreDataThisRound.hasBasis ? "42 - ${scoreDataThisRound.score}" : "Ungültig";
+          } else if (scoreDataLastRound != null) {
+            // Spieler war noch nicht dran, zeige VORIGE Runde
+            scoreDisplay = scoreDataLastRound.hasBasis ? "42 - ${scoreDataLastRound.score}" : "Ungültig";
+          }
+          // (else: scoreDisplay bleibt "---" für erste Runde)
+
+          // Farbe basierend auf dem endgültigen scoreDisplay setzen
+          scoreColor = (scoreDisplay == "Ungültig") ? Colors.red : Colors.black54;
 
 
           return Container(
             color: isCurrent ? currentHighlightColor : Colors.transparent,
-            padding: const EdgeInsets.symmetric(vertical: 6.0), // Reduced vertical padding
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
             child: Row(
               children: [
+                // Spielername
                 Expanded(
-                  flex: 5,
+                  flex: 4, // Mehr Platz
                   child: Text(
                     playerName,
-                    style: cellStyle.copyWith(
-                      fontWeight: isCurrent || isLowestLife ? FontWeight.bold : FontWeight.normal, // Bold if current or lowest life
-                      color: isEliminated ? Colors.grey : (isLowestLife ? Colors.red.shade700 : Colors.black), // Red if lowest life
+                    style: cellStyle.copyWith( // cellStyle ist jetzt schwarz und fett
+                      color: isEliminated ? Colors.grey : (isLowestLife ? Colors.red.shade700 : Colors.black),
                       decoration: isEliminated ? TextDecoration.lineThrough : TextDecoration.none,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
                 ),
+                // Score (NEU)
                 Expanded(
                   flex: 3,
                   child: Center(
+                    child: Text(
+                      scoreDisplay,
+                      style: scoreStyle.copyWith(
+                        color: scoreColor, // Dynamische Farbe
+                      ),
+                    ),
+                  ),
+                ),
+                // Leben (Herzen)
+                Expanded(
+                  flex: 3, // Weniger Platz
+                  child: Center(
                     child: Wrap(
-                      spacing: 1.0, // Tighter spacing
+                      spacing: 1.0,
                       runSpacing: 1.0,
                       alignment: WrapAlignment.center,
                       children: List.generate(
                         _game.initialLives,
                             (i) => Icon(
                           i < livesCount ? Icons.favorite : Icons.favorite_border,
-                          color: i < livesCount ? Colors.red : Colors.grey.shade400,
+                          color: Colors.black, // HERZEN JETZT SCHWARZ
                           size: heartSize,
                         ),
                       ),
@@ -617,25 +680,20 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
             ),
           );
         }),
-        // }), // End ListView.builder
-        // ), // End Flexible
       ],
     );
+    // --- ENDE ÄNDERUNGEN ---
   }
-
 
   // --- Dialog & Info Overlay ---
 
   void _showRoundResolutionDialog() {
-    // Ensure dialog is shown only once per round end and only if game is not over
     if (!mounted || _game.isGameOver) return;
 
-    // Determine loser AFTER sorting for correct highlighting in dialog
     List<MapEntry<String, FourTwoEighteenScore>> sortedResults = _game.roundResults.entries.toList()
-      ..sort((a, b) => b.value.isBetterThan(a.value) ? 1 : -1); // Best score first
+      ..sort((a, b) => b.value.isBetterThan(a.value) ? 1 : -1);
 
-    // Find the actual loser based on tie-breaking rules if needed
-    String loser = "Niemand"; // Default
+    String loser = "Niemand";
     if (sortedResults.isNotEmpty) {
       final worstScore = sortedResults.last.value;
       final potentialLosers = sortedResults
@@ -646,20 +704,19 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
           .toList();
 
       if (potentialLosers.length > 1) {
-        potentialLosers.sort((a, b) => widget.players.indexOf(a.key).compareTo(widget.players.indexOf(b.key))); // Sort by original player order
+        potentialLosers.sort((a, b) => widget.players.indexOf(a.key).compareTo(widget.players.indexOf(b.key)));
         loser = potentialLosers.first.key;
-      } else {
+      } else if (potentialLosers.isNotEmpty) { // Sicherstellen, dass die Liste nicht leer ist
         loser = potentialLosers.first.key;
       }
     }
-
 
     String winner = sortedResults.isNotEmpty ? sortedResults.first.key : "Niemand";
     int winnerScore = sortedResults.isNotEmpty ? sortedResults.first.value.score : 0;
 
     showDialog(
       context: context,
-      barrierDismissible: false, // User must press OK
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFFFA4848),
@@ -668,9 +725,8 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
               side: const BorderSide(color: Colors.white, width: 5)
           ),
           title: Text(
-            // Check if there was a valid winner
             sortedResults.isNotEmpty && sortedResults.first.value.hasBasis
-                ? '$winner gewinnt die Runde mit ${winnerScore}!'
+                ? '$winner gewinnt mit $winnerScore!'
                 : 'Kein gültiger Wurf!',
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
             textAlign: TextAlign.center,
@@ -680,9 +736,8 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Display status message (who lost a life)
                 Text(
-                    _game.gameStatusMessage, // Shows "... verliert 1 Leben."
+                    _game.gameStatusMessage,
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                     textAlign: TextAlign.center
                 ),
@@ -690,11 +745,10 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                 const Divider(color: Colors.white, thickness: 2),
                 const SizedBox(height: 10),
 
-                // Display sorted results
                 ...sortedResults.map((entry) {
                   final player = entry.key;
                   final score = entry.value;
-                  final isWorst = player == loser; // Highlight the actual loser
+                  final isWorst = player == loser;
                   final diceSize = (MediaQuery.of(context).size.width * 0.08).clamp(25.0, 35.0);
 
                   return Padding(
@@ -710,21 +764,21 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                                 player,
                                 style: TextStyle(
                                   fontSize: 18,
-                                  color: isWorst ? Colors.black : Colors.white, // Highlight loser in black
+                                  color: isWorst ? Colors.black : Colors.white,
                                   fontWeight: isWorst ? FontWeight.bold : FontWeight.normal,
                                 ),
                               ),
                               Text(
-                                score.hasBasis ? 'Punkte: ${score.score} (${score.usedRolls} Würfe)' : 'Ungültig', // Simplified text
+                                score.hasBasis ? 'Punkte: ${score.score} (${score.usedRolls} Würfe)' : 'Ungültig',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: score.hasBasis ? Colors.white70 : Colors.black, // Highlight invalid in black
+                                  color: score.hasBasis ? Colors.white70 : Colors.black,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        Row( // Würfel anzeigen
+                        Row(
                           children: score.diceValues.map((value) => Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 1.0),
                             child: SizedBox(
@@ -744,15 +798,11 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
           actions: <Widget>[
             Center(
               child: _buildActionButton(
-                // Use _game.currentPlayerName for who starts next, as logic sets it
                   'OK (Start: ${_game.currentPlayerName})',
                       () {
                     Navigator.of(context).pop();
-                    // Check game over state *after* dialog is closed
                     if (mounted && !_game.isGameOver) {
                       _game.startNextRound();
-                    } else if (mounted && _game.isGameOver) {
-                      // Game over state change will trigger the game over dialog
                     }
                   },
                   isPrimary: true
@@ -764,11 +814,10 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
     );
   }
 
-  // New Dialog for Game Over
   void _showGameOverDialog() {
-    if (!mounted) return; // Ensure widget is still mounted
+    if (!mounted) return;
 
-    String winnerName = "Unentschieden"; // Default
+    String winnerName = "Unentschieden";
     final remainingPlayers = _game.playerLives.entries.where((entry) => entry.value > 0).toList();
     if (remainingPlayers.length == 1) {
       winnerName = remainingPlayers.first.key;
@@ -776,7 +825,7 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
 
     showDialog(
       context: context,
-      barrierDismissible: false, // Must press button
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFFFA4848),
@@ -790,19 +839,19 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
             textAlign: TextAlign.center,
           ),
           content: Text(
-            _game.gameStatusMessage, // Shows winner message
+            _game.gameStatusMessage,
             style: const TextStyle(color: Colors.white, fontSize: 18),
             textAlign: TextAlign.center,
           ),
           actions: <Widget>[
             Center(
-              child: Column( // Buttons below each other
+              child: Column(
                 children: [
                   _buildActionButton(
                       'NEU STARTEN',
                           () {
                         Navigator.of(context).pop();
-                        _game.restartGame(); // Call restart method in logic
+                        _game.restartGame();
                       },
                       isPrimary: true
                   ),
@@ -811,9 +860,9 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                       'ZURÜCK ZUR AUSWAHL',
                           () {
                         Navigator.of(context).pop();
-                        widget.onGameExit(); // Call exit callback
+                        widget.onGameExit();
                       },
-                      isPrimary: false // Secondary style
+                      isPrimary: false
                   ),
                 ],
               ),
@@ -826,8 +875,8 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
 
 
   Widget _buildInfoOverlay() {
-    final titleStyle = TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold);
-    final itemStyle = TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600);
+    final titleStyle = const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold);
+    final itemStyle = const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600);
     final diceSize = (MediaQuery.of(context).size.width * 0.1).clamp(35.0, 45.0);
 
     return Positioned.fill(
@@ -837,10 +886,9 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
           color: Colors.black.withOpacity(0.85),
           child: Center(
             child: GestureDetector(
-              onTap: () {}, // Klicks innerhalb der Box abfangen
+              onTap: () {},
               child: Container(
                 width: MediaQuery.of(context).size.width * 0.9,
-                // Make height slightly more flexible
                 constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
                 padding: const EdgeInsets.all(20.0),
                 decoration: BoxDecoration(
@@ -849,7 +897,7 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                     border: Border.all(color: Colors.white, width: 5)
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min, // Adjust height to content
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Stack(
                       alignment: Alignment.centerLeft,
@@ -866,48 +914,48 @@ class _FourTwoEighteenGameWidgetState extends State<FourTwoEighteenGameWidget> {
                     ),
                     const SizedBox(height: 15),
                     const Divider(thickness: 3, color: Colors.white),
-                    // Make the rules scrollable if they overflow
                     Flexible(
                       child: ListView(
-                        shrinkWrap: true, // Important within Flexible
+                        shrinkWrap: true,
                         children: [
                           Text("Ziel:", style: itemStyle.copyWith(decoration: TextDecoration.underline)),
-                          Text("Erreiche mit 3 Würfeln die höchste Punktzahl (max. 18), NACHDEM du die Basis '4' und '2' gesichert hast. Verliere nicht alle deine ${_game.initialLives} Leben!", style: itemStyle.copyWith(fontWeight: FontWeight.normal)), // Show initial lives
+                          Text("Sichere die Basis '4' und '2' und erreiche mit den 3 anderen Würfeln die höchste Punktzahl (max. 18). Verliere nicht alle deine ${_game.initialLives} Leben!", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           const SizedBox(height: 20),
 
                           Text("Ablauf (pro Spieler):", style: itemStyle.copyWith(decoration: TextDecoration.underline)),
-                          Text("Du hast 3 Würfe pro Runde.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)), // Clarified 'per round'
+                          Text("Dein Zug geht so lange, bis alle 5 Würfel auf dem Brett liegen.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           const SizedBox(height: 10),
 
-                          Text("1. Basis (4 & 2) finden:", style: itemStyle),
+                          Text("1. Würfeln & Ablegen:", style: itemStyle),
+                          Text("Nach JEDEM Wurf (Klick auf 'NOCHMAL') MUSST du mindestens einen der gewürfelten Würfel auf einen passenden, freien Slot legen.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           Row(children: [
-                            Text("Sichere zuerst ", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                            Text("Passende Slots: ", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                             SizedBox(width: diceSize, height: diceSize / DiceAssetDisplay.diceAspectRatio, child: DiceAssetDisplay(value: 4)),
-                            Text(" und ", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                            Text(" auf '4', ", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                             SizedBox(width: diceSize, height: diceSize / DiceAssetDisplay.diceAspectRatio, child: DiceAssetDisplay(value: 2)),
+                            Text(" auf '2'.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           ]),
-                          Text("Lege sie in die Basis-Slots (ziehen & fallen lassen).", style: itemStyle.copyWith(fontWeight: FontWeight.normal)), // Drag&Drop hint
+                          Text("Alle anderen Würfel (1, 3, 5, 6) kommen auf die '...'-Slots.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           const SizedBox(height: 15),
 
-                          Text("2. Punkte (max. 18) würfeln:", style: itemStyle),
-                          Text("Sobald die Basis liegt, sichere 3 weitere Würfel in den Punkte-Slots.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                          Text("2. Zug beenden:", style: itemStyle),
+                          Text("Sobald der 5. Würfel liegt, ist dein Zug beendet und dein Ergebnis wird gewertet.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           const SizedBox(height: 15),
 
                           Text("Wichtig:", style: itemStyle),
-                          Text("- Du musst nach dem 1. Wurf min. 1 Würfel sichern.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
-                          Text("- Hast du nach 3 Würfen keine Basis (4 & 2), ist dein Wurf ungültig.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
-                          Text("- Du kannst gesicherte Würfel durch Antippen wieder freigeben.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)), // Release hint
+                          Text("- Du kannst 'NOCHMAL' erst klicken, wenn du einen Würfel abgelegt hast.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                          Text("- Einmal abgelegte Würfel kannst du durch Antippen wieder freigeben.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                          Text("- Dein Wurf ist ungültig, wenn am Ende keine '4' und '2' in den Basis-Slots liegen.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           const SizedBox(height: 20),
 
                           Text("Wertung & Leben:", style: itemStyle.copyWith(decoration: TextDecoration.underline)),
                           Text("Der Spieler mit dem schlechtesten Wurf verliert 1 Leben.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
-                          Text("Vergleich (von schlecht nach gut):", style: itemStyle), // Changed order
-                          Text("1. Ungültig (keine Basis).", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                          Text("Vergleich (von schlecht nach gut):", style: itemStyle),
+                          Text("1. Ungültig (Basis fehlt).", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           Text("2. Gültig: Niedrigste Punktzahl (3-18).", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
-                          Text("3. Bei gleicher Punktzahl: Mehr Würfe gebraucht.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
+                          Text("3. Bei gleicher Punktzahl: Mehr 'NOCHMAL'-Klicks.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           Text("4. Bei weiterem Gleichstand: Wer zuerst gewürfelt hat.", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
                           Text("Wer keine Leben mehr hat, scheidet aus. Der letzte Spieler gewinnt!", style: itemStyle.copyWith(fontWeight: FontWeight.normal)),
-
 
                         ],
                       ),

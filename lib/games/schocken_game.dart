@@ -362,15 +362,27 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
 
     String resultText = "";
     if (_game.roundLoserName != null && _game.areResultsCalculated) {
-      // NEUE LOGIK FÜR RESULTAT-TEXT
+      // NEUE LOGIK FÜR RESULTAT-TEXT (basierend auf der Logik-Datei)
       if (_game.wasGameLost) {
-        resultText = '${_game.roundLoserName} hat das Spiel verloren!';
+        // Spiel ist vorbei
+        if (_game.playerHalfLosses.where((h) => h > 0).length == 1) {
+          // Nur 1 Spieler hat HZ-Verluste -> muss H1 & H2 verloren haben
+          resultText = '${_game.roundLoserName} hat beide Halbzeiten verloren!';
+        } else {
+          // 2 Spieler hatten HZ-Verluste -> Finale wurde verloren
+          resultText = '${_game.roundLoserName} hat das Finale verloren!';
+        }
       } else if (_game.wasHalfLost) {
-        // Unterscheiden, ob Finale beginnt oder 2. Halbzeit
-        resultText = _game.gamePhase == 3
-            ? '${_game.roundLoserName} hat die 2. Halbzeit verloren!'
-            : '${_game.roundLoserName} hat die 1. Halbzeit verloren!';
+        // Eine Halbzeit/Finale wurde gerade beendet
+        if (_game.gamePhase == 3) {
+          // Phase 3 wurde gerade EINGELEITET (H2 war fertig, unterschiedl. Verlierer)
+          resultText = '${_game.roundLoserName} hat die 2. Halbzeit verloren!';
+        } else if (_game.gamePhase == 1 && _game.firstHalfLoserIndex != null) {
+          // Phase 1 wurde gerade EINGELEITET (H1 war fertig)
+          resultText = '${_game.roundLoserName} hat die 1. Halbzeit verloren!';
+        }
       } else {
+        // Normaler Rundenverlust
         resultText = '${_game.roundLidsTransferred} Deckel gehen an ${_game.roundLoserName}';
       }
     }
@@ -384,6 +396,9 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
       if (_game.wasGameLost) {
         buttonText = 'SPIEL BEENDEN';
       } else if (_game.wasHalfLost) {
+        // Logik aus _game.dart:
+        // gamePhase == 3 -> Finale beginnt
+        // gamePhase == 1 -> Nächste HZ beginnt
         buttonText = _game.gamePhase == 3 ? 'FINALE STARTEN' : 'NÄCHSTE HALBZEIT';
       } else {
         buttonText = 'NÄCHSTE RUNDE';
@@ -489,6 +504,8 @@ class _SchockenGameWidgetState extends State<SchockenGameWidget> with SingleTick
                 Color? highlightColor;
                 if (playerName == _game.roundWinnerName) highlightColor = Colors.green.shade100;
                 if (playerName == _game.roundLoserName) highlightColor = Colors.red.shade100;
+
+                // Deckelwert 0 wird nicht angezeigt
                 int lidIndex = score.lidValue - 1;
                 bool validLidIndex = DiceAssetPaths.lidUrls != null && lidIndex >= 0 && lidIndex < DiceAssetPaths.lidUrls!.length;
                 String lidAssetPath = validLidIndex ? DiceAssetPaths.lidUrls![lidIndex] : '';
