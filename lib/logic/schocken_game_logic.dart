@@ -84,11 +84,15 @@ class SchockenGame extends ChangeNotifier {
   int _lidsInMiddle = 13;
   int _rollsLeft = 3;
   int _currentPlayerIndex = 0;
-  int _half = 1;
+  // int _half = 1; // Ersetzt durch _gamePhase
   int _loserIndexAtStartOfRound = 0; // Index des Spielers, der die Runde beginnt
   List<int> _currentDiceValues = [1, 1, 1];
   List<int> _heldDiceIndices = [];
   int _maxRollsInRound = 3; // Max. erlaubte Würfe in dieser Runde
+
+  // NEU: Spielphasen-Management
+  late List<bool> _activePlayers; // Welche Spieler nehmen teil
+  int _gamePhase = 1; // 1 = Stock leeren, 2 = Halbzeit (Stock leer), 3 = Finale
 
   // --- Phasensteuerung ---
   bool _isRoundFinished = false;
@@ -105,10 +109,12 @@ class SchockenGame extends ChangeNotifier {
   List<int> get playerLids => _playerLids;
   List<int> get playerHalfLosses => _playerHalfLosses;
   List<SchockenScore?> get playerScores => _playerScores;
+  List<bool> get activePlayers => _activePlayers; // NEU
   int get lidsInMiddle => _lidsInMiddle;
   int get rollsLeft => _rollsLeft;
   int get currentPlayerIndex => _currentPlayerIndex;
-  int get half => _half;
+  // int get half => _half; // Ersetzt durch _gamePhase
+  int get gamePhase => _gamePhase; // Neuer Getter
   int get loserIndexAtStartOfRound => _loserIndexAtStartOfRound;
   List<int> get currentDiceValues => _currentDiceValues;
   List<int> get heldDiceIndices => _heldDiceIndices;
@@ -126,11 +132,14 @@ class SchockenGame extends ChangeNotifier {
     _playerLids = List.generate(playerNames.length, (index) => 0);
     _playerHalfLosses = List.generate(playerNames.length, (index) => 0);
     _playerScores = List.generate(playerNames.length, (index) => null);
+    _activePlayers = List.generate(playerNames.length, (index) => true); // Phase 1: Alle aktiv
+    _gamePhase = 1;
     _startRound(); // Starte die erste Runde
   }
 
   // --- Spielaktionen ---
   void rollDice() {
+    // Prüft, ob der aktuelle Spieler würfeln darf (basierend auf maxRolls)
     if (_currentPlayerIndex != _loserIndexAtStartOfRound && (3 - _rollsLeft) >= _maxRollsInRound) return;
     if (_rollsLeft == 0) return;
 
@@ -144,6 +153,7 @@ class SchockenGame extends ChangeNotifier {
 
     final currentRolls = 3 - _rollsLeft;
 
+    // Beende den Zug automatisch, wenn das Wurflimit erreicht ist
     if ((_currentPlayerIndex != _loserIndexAtStartOfRound && currentRolls >= _maxRollsInRound) || _rollsLeft == 0) {
       endTurn(true);
     } else {
@@ -152,21 +162,23 @@ class SchockenGame extends ChangeNotifier {
   }
 
   void handleDiceTap(int index) {
-    if (_rollsLeft == 0) return;
+    if (_rollsLeft == 0) return; // Nicht nach dem letzten Wurf ändern
 
+    // Sonderregel: Zwei Sechsen -> Dritte Zahl wird zur Eins (wenn nicht schon 1)
     final sixes = _currentDiceValues.where((v) => v == 6).toList();
     if (sixes.length == 2) {
       int thirdDieIndex = _currentDiceValues.indexWhere((v) => v != 6);
       if (index == thirdDieIndex && _currentDiceValues[index] != 1) {
         _currentDiceValues[index] = 1;
         if (!_heldDiceIndices.contains(index)) {
-          _heldDiceIndices.add(index);
+          _heldDiceIndices.add(index); // Die 1 sofort halten
         }
         notifyListeners();
-        return;
+        return; // Aktion beendet
       }
     }
 
+    // Normales Halten/Lösen (nur bei Einsern)
     if (_currentDiceValues[index] == 1) {
       if (_heldDiceIndices.contains(index)) {
         _heldDiceIndices.remove(index);
@@ -179,9 +191,11 @@ class SchockenGame extends ChangeNotifier {
 
 
   void endTurn(bool isForced) {
+    // Ersten Wurf nicht "lassen"
     if (!isForced && _rollsLeft == 3) return;
     final usedRolls = 3 - _rollsLeft;
 
+    // Setzt maxRolls nur, wenn der Startspieler den Wurf beendet
     if (_currentPlayerIndex == _loserIndexAtStartOfRound) {
       _maxRollsInRound = usedRolls == 0 ? 1 : usedRolls;
     }
@@ -189,27 +203,71 @@ class SchockenGame extends ChangeNotifier {
     SchockenScore score = _evaluateDice(_currentDiceValues, usedRolls, List.from(_heldDiceIndices), _currentPlayerIndex);
     _playerScores[_currentPlayerIndex] = score;
 
-    bool allPlayersDone = true;
-    for (var score in _playerScores) {
-      if (score == null) {
-        allPlayersDone = false;
+    // Prüfen, ob alle AKTIVEN Spieler fertig sind
+    bool allActivePlayersDone = true;
+    for (int i = 0; i < playerNames.length; i++) {
+      if (_activePlayers[i] && _playerScores[i] == null) {
+        allActivePlayersDone = false;
         break;
       }
     }
-    // Kompaktere Prüfung: bool allPlayersDone = !_playerScores.contains(null);
 
-
-    if (allPlayersDone) {
+    if (allActivePlayersDone) {
       _isRoundFinished = true;
     } else {
-      _currentPlayerIndex = (_currentPlayerIndex + 1) % playerNames.length;
-      _prepareNextTurn();
+      // Finde den nächsten AKTIVEN Spieler
+      _currentPlayerIndex = _findNextActivePlayer(_currentPlayerIndex);
+      _prepareNextTurn(); // Bereitet Würfel etc. vor
     }
     notifyListeners();
   }
 
   // --- Runden-/Spiel-Management ---
+
+  // NEU: Methode, um die aktiven Spieler basierend auf der Phase zu bestimmen
+  void _updateActivePlayers() {
+    int halfLossCount = _playerHalfLosses.where((h) => h > 0).length;
+
+    if (halfLossCount >= 2) {
+      // Phase 3: Finale - Nur Spieler mit Halbzeitverlust spielen
+      _gamePhase = 3;
+      _activePlayers = List.generate(playerNames.length, (i) => _playerHalfLosses[i] > 0);
+    } else if (_lidsInMiddle == 0) {
+      // Phase 2: Halbzeit ausspielen - Nur Spieler mit Deckeln spielen
+      _gamePhase = 2;
+      _activePlayers = List.generate(playerNames.length, (i) => _playerLids[i] > 0);
+    } else {
+      // Phase 1: Stock leeren - Alle spielen
+      _gamePhase = 1;
+      _activePlayers = List.generate(playerNames.length, (i) => true);
+    }
+
+    // Sicherstellen, dass der Startspieler der Runde aktiv ist
+    if (!_activePlayers[_loserIndexAtStartOfRound]) {
+      // Wenn der eigentliche Startspieler (Verlierer) nicht mehr aktiv ist
+      // (z.B. weil er in Phase 2 keine Deckel mehr hat), finde den nächsten aktiven Spieler.
+      _loserIndexAtStartOfRound = _findNextActivePlayer(_loserIndexAtStartOfRound);
+    }
+    _currentPlayerIndex = _loserIndexAtStartOfRound;
+  }
+
+  // NEU: Hilfsmethode, um den nächsten aktiven Spieler zu finden
+  int _findNextActivePlayer(int currentIndex) {
+    int nextIndex = currentIndex;
+    for (int i = 0; i < playerNames.length; i++) {
+      nextIndex = (nextIndex + 1) % playerNames.length;
+      if (_activePlayers[nextIndex]) {
+        return nextIndex;
+      }
+    }
+    // Fallback, sollte nicht passieren, wenn Logik stimmt (z.B. wenn nur 1 Spieler aktiv ist)
+    return _activePlayers.indexOf(true);
+  }
+
   void _startRound() {
+    // VOR dem Zurücksetzen der Scores die aktiven Spieler bestimmen
+    _updateActivePlayers(); // Setzt _gamePhase und _activePlayers
+
     _rollsLeft = 3;
     _currentDiceValues = [1, 1, 1];
     _heldDiceIndices = [];
@@ -218,49 +276,40 @@ class SchockenGame extends ChangeNotifier {
     _roundWinnerName = null;
     _roundLoserName = null;
     _wasHalfLost = false;
-    _wasGameLost = false;
+    // _wasGameLost NICHT zurücksetzen, das wird nur in calculateAndSetResults gesetzt
 
+    // Setzt den Startspieler (wurde in _updateActivePlayers ggf. korrigiert)
+    _currentPlayerIndex = _loserIndexAtStartOfRound;
+
+    // Nur Scores von aktiven Spielern zurücksetzen
+    _playerScores = List.generate(playerNames.length, (index) {
+      // Wenn Spieler inaktiv ist, behalte seinen Score (oder null),
+      // wenn er aktiv ist, setze auf null für die neue Runde.
+      return _activePlayers[index] ? null : _playerScores[index];
+    });
+
+    // Max Rolls für den Startspieler setzen
     if (_currentPlayerIndex == _loserIndexAtStartOfRound) {
       _maxRollsInRound = 3;
-      // Scores nur zurücksetzen, wenn eine *komplett neue* Runde beginnt (also vom Verlierer gestartet)
-      _playerScores = List.generate(playerNames.length, (index) => null);
-    } else {
-      // Wenn ein anderer Spieler dran ist, nur dessen Score zurücksetzen
-      if(_playerScores[_currentPlayerIndex] != null) {
-        _playerScores[_currentPlayerIndex] = null;
-      }
     }
-
     // Kein notifyListeners() hier, da es von außen kommt
   }
+
 
   void _prepareNextTurn() {
     _rollsLeft = 3;
     _currentDiceValues = [1, 1, 1];
     _heldDiceIndices = [];
-    // Wichtig: _isRoundFinished etc. hier *nicht* zurücksetzen
-    // Score des nächsten Spielers wird in _startRound() zurückgesetzt, wenn er dran ist
-    // Hier nichts tun bzgl. Scores
   }
 
 
   void startNextRoundOrHalf() {
-    if (_wasHalfLost) {
-      _startHalf();
-    } else {
-      // Wichtig: _currentPlayerIndex wurde bereits in calculateAndSetResults gesetzt
-      _startRound();
-    }
-    notifyListeners();
-  }
-
-  void _startHalf() {
-    _half++;
-    _lidsInMiddle = 13;
-    _playerLids = List.generate(playerNames.length, (index) => 0);
-    // _currentPlayerIndex bleibt der Verlierer der letzten Runde
+    // _wasHalfLost wird in _startRound() zurückgesetzt.
+    // Die Logik für Halbzeit/Finale wurde bereits in calculateAndSetResults behandelt
+    // (Deckel auffüllen, _gamePhase setzen).
+    // Wir müssen nur die nächste Runde starten.
     _startRound();
-    // notifyListeners() in startNextRoundOrHalf
+    notifyListeners();
   }
 
 
@@ -308,13 +357,14 @@ class SchockenGame extends ChangeNotifier {
   void calculateAndSetResults() {
     if (!_isRoundFinished) return;
 
-    List<MapEntry<String, SchockenScore>> scoredPlayers = getSortedPlayerScores(); // Sortiert von Best nach Schlechtest
+    // Hole sortierte Liste, ABER nur von aktiven Spielern
+    List<MapEntry<String, SchockenScore>> scoredPlayers = getSortedPlayerScores();
 
     // --- KORRIGIERTE Tie-Breaking Logik ---
     String finalLoserName = scoredPlayers.last.key; // Annahme: Letzter ist Verlierer
     SchockenScore loserScore = scoredPlayers.last.value;
 
-    // Finde alle Spieler mit dem gleichen schlechtesten Score
+    // Finde alle Spieler mit dem gleichen schlechtesten Score (aus der Liste der aktiven Spieler)
     List<MapEntry<String, SchockenScore>> potentialLosers = scoredPlayers
         .where((entry) =>
     entry.value.type == loserScore.type && entry.value.value == loserScore.value)
@@ -338,24 +388,40 @@ class SchockenGame extends ChangeNotifier {
     _roundLoserName = finalLoserName; // Der Verlierer nach Tie-Breaking
     int loserIndex = playerNames.indexOf(_roundLoserName!);
     SchockenScore bestScoreOfRound = scoredPlayers.first.value; // Bester Score bestimmt Deckel
-    _roundLidsTransferred = bestScoreOfRound.lidValue;
+
+    // ANPASSUNG WUNSCH 1: _roundLidsTransferred darf nicht größer sein als _lidsInMiddle, WENN _lidsInMiddle > 0 (Phase 1)
+    if (_gamePhase == 1) { // Phase 1 (Stock leeren)
+      _roundLidsTransferred = math.min(bestScoreOfRound.lidValue, _lidsInMiddle);
+    } else { // Phase 2 oder 3
+      _roundLidsTransferred = bestScoreOfRound.lidValue;
+    }
+
 
     _wasHalfLost = false;
     _wasGameLost = false;
 
-    // --- Deckel-Logik ---
-    int lidsToTake = _roundLidsTransferred;
-    int lidsFromMiddle = math.min(_lidsInMiddle, lidsToTake);
-    _playerLids[loserIndex] += lidsFromMiddle;
-    _lidsInMiddle -= lidsFromMiddle;
-    lidsToTake -= lidsFromMiddle;
+    // --- Deckel-Logik (ANGEPASST für Wunsch 1) ---
+    int lidsToTake = _roundLidsTransferred; // Dieser Wert ist in Phase 1 bereits limitiert
 
-    if (lidsToTake > 0 && playerNames.length > 1) {
-      int winnerIndex = playerNames.indexOf(_roundWinnerName!);
-      if (winnerIndex != loserIndex) {
-        int actualLidsFromWinner = math.min(_playerLids[winnerIndex], lidsToTake);
-        _playerLids[winnerIndex] -= actualLidsFromWinner;
-        _playerLids[loserIndex] += actualLidsFromWinner;
+    // In Phase 1 (Stock leeren): Nimm *nur* aus der Mitte
+    if (_gamePhase == 1) {
+      // lidsToTake ist bereits math.min(bestScore.lidValue, _lidsInMiddle)
+      _playerLids[loserIndex] += lidsToTake;
+      _lidsInMiddle -= lidsToTake;
+    }
+    // In Phase 2 oder 3 (Stock ist leer): Nimm vom Gewinner
+    else {
+      // Stock ist leer (_lidsInMiddle == 0)
+      // lidsToTake ist der volle Wert des Wurfs (z.B. 6 für Schock 6).
+
+      if (lidsToTake > 0 && playerNames.length > 1) {
+        int winnerIndex = playerNames.indexOf(_roundWinnerName!);
+        if (winnerIndex != loserIndex) {
+          // In Phase 2/3 kann der Gewinner auch Deckel verlieren.
+          int actualLidsFromWinner = math.min(_playerLids[winnerIndex], lidsToTake);
+          _playerLids[winnerIndex] -= actualLidsFromWinner;
+          _playerLids[loserIndex] += actualLidsFromWinner;
+        }
       }
     }
     // --- Ende Deckel-Logik ---
@@ -363,13 +429,31 @@ class SchockenGame extends ChangeNotifier {
 
     if (_playerLids[loserIndex] >= 13) {
       _wasHalfLost = true;
-      // Bei Halbzeitverlust werden ALLE Deckel zurückgesetzt und die Mitte aufgefüllt
-      _playerLids = List.generate(playerNames.length, (index) => 0);
-      _lidsInMiddle = 13;
-      _playerHalfLosses[loserIndex]++;
-      if (_playerHalfLosses[loserIndex] >= 2) {
-        _wasGameLost = true;
+      _playerHalfLosses[loserIndex]++; // Zuerst erhöhen
+
+      int halfLossCount = _playerHalfLosses.where((h) => h > 0).length;
+
+      if (halfLossCount >= 2) {
+        // Phase 3 (Finale) erreicht!
+        _wasGameLost = false; // Nicht das Spiel beenden
+        _gamePhase = 3;
+        // Deckel zurücksetzen, Mitte auffüllen für das Finale
+        _playerLids = List.generate(playerNames.length, (index) => 0);
+        _lidsInMiddle = 13;
+      } else {
+        // Phase 2 (Erste Halbzeit verloren)
+        _wasGameLost = false;
+        _gamePhase = 1; // Startet Phase 1 für die 2. Halbzeit
+        // Deckel zurücksetzen, Mitte auffüllen für 2. Halbzeit
+        _playerLids = List.generate(playerNames.length, (index) => 0);
+        _lidsInMiddle = 13;
       }
+    }
+
+    // NEU: Wenn im Finale (Phase 3) eine Halbzeit verloren wurde (_wasHalfLost = true),
+    // dann ist das Spiel WIRKLICH vorbei.
+    if (_gamePhase == 3 && _wasHalfLost) {
+      _wasGameLost = true; // Das Spiel ist jetzt endgültig vorbei.
     }
 
     _loserIndexAtStartOfRound = loserIndex; // Verlierer beginnt nächste Runde
@@ -380,10 +464,12 @@ class SchockenGame extends ChangeNotifier {
   }
 
   /// Gibt eine sortierte Liste der Spieler und ihrer Scores zurück (Bester zuerst).
+  /// Berücksichtigt NUR Spieler, die in dieser Runde aktiv waren (_activePlayers).
   List<MapEntry<String, SchockenScore>> getSortedPlayerScores() {
     List<MapEntry<String, SchockenScore>> scoredPlayers = [];
     for (int i = 0; i < playerNames.length; i++) {
-      if (_playerScores[i] != null) {
+      // NEU: Prüfe, ob Spieler aktiv war UND einen Score hat
+      if (_activePlayers[i] && _playerScores[i] != null) {
         scoredPlayers.add(MapEntry(playerNames[i], _playerScores[i]!));
       }
     }
@@ -393,4 +479,3 @@ class SchockenGame extends ChangeNotifier {
   }
 
 }
-

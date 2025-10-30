@@ -31,7 +31,7 @@ class _InitialSplashScreenState extends State<InitialSplashScreen> {
             const Text(
               'WÜRFELN',
               style: TextStyle(
-                fontSize: 80, // Sehr groß, wie im Bild
+                fontSize: 70, // Sehr groß, wie im Bild
                 fontWeight: FontWeight.w900,
                 shadows: [
                   Shadow(

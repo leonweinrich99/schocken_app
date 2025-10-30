@@ -25,18 +25,18 @@ class DiceGameApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Würfelspiel-Sammlung',
+      title: 'Würfeln',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: const ColorScheme.dark(
           primary: Colors.white,
           secondary: Color(0xFF1E1E1E),
           surface: Color(0xFF1E1E1E),
-          background: Color(0xFFEB3B2C),
+          background: Color(0xFFFA4848),
         ),
-        scaffoldBackgroundColor: const Color(0xFFEB3B2C),
+        scaffoldBackgroundColor: const Color(0xFFFA4848),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFEB3B2C),
+          backgroundColor: Color(0xFFFA4848),
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,

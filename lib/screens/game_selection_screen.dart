@@ -12,18 +12,19 @@ class GameSelectionScreen extends StatelessWidget {
     return Center(
       child: Container(
         padding: const EdgeInsets.all(5),
-        constraints: const BoxConstraints(maxWidth: 400),
+        constraints: const BoxConstraints(maxWidth: 375),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const SizedBox(height: 60),
             // --- Titel (jetzt responsiv) ---
             FittedBox( // NEU: Skaliert den Text, damit er in die Breite passt
               fit: BoxFit.contain, // Stellt sicher, dass der Text hineinpasst
               child: const Text(
                 'WÜRFELN',
                 style: TextStyle(
-                  fontSize: 70, // Basis-Schriftgröße, wird von FittedBox skaliert
+                  fontSize: 60, // Basis-Schriftgröße, wird von FittedBox skaliert
                   fontWeight: FontWeight.w900,
                   shadows: [
                     Shadow(
@@ -107,6 +108,10 @@ class GameSelectionScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: InkWell(
+          focusColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          splashColor: Colors.transparent,
           onTap: isDisabled || mode == null ? null : () => onGameSelected(mode),
           borderRadius: BorderRadius.circular(6),
           child: Padding(
@@ -115,13 +120,12 @@ class GameSelectionScreen extends StatelessWidget {
               children: [
                 // Würfel-Icon (jetzt mit Bild)
                 _buildDiceImage(diceValue), // Geändert zu _buildDiceImage
-                const SizedBox(width: 20),
                 // Spiel-Titel
                 if (title != null)
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 42,
+                      fontSize: 36,
                       fontWeight: FontWeight.w900,
                       color: isDisabled ? Colors.white54 : Colors.white,
                     ),

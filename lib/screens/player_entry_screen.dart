@@ -38,7 +38,8 @@ class _PlayerEntryScreenState extends State<PlayerEntryScreen> {
 
   void _addPlayerField() {
     setState(() {
-      final controller = TextEditingController(text: 'Spieler ${_controllers.length + 1}');
+      // ÄNDERUNG: Controller startet jetzt leer
+      final controller = TextEditingController();
       final focusNode = FocusNode();
       _controllers.add(controller);
       _focusNodes.add(focusNode);
@@ -67,16 +68,24 @@ class _PlayerEntryScreenState extends State<PlayerEntryScreen> {
     final playerNames = _controllers
         .map((controller) => controller.text.trim())
         .where((name) => name.isNotEmpty)
+    // Stellt sicher, dass Standard-Platzhalter nicht als Namen verwendet werden
+        .where((name) => !RegExp(r'^Spieler \d+$').hasMatch(name))
         .toList();
 
-    // Startet das Spiel nur, wenn mindestens ein Name eingegeben wurde
+    // Fügt Standardnamen hinzu, WENN das Feld leer gelassen wurde
+    for (int i = 0; i < _controllers.length; i++) {
+      String name = _controllers[i].text.trim();
+      if (name.isEmpty) {
+        playerNames.add('Spieler ${i + 1}');
+      }
+    }
+
+    // Startet das Spiel nur, wenn mindestens ein Name vorhanden ist
     if (playerNames.isNotEmpty) {
       widget.onStartGame(playerNames);
     } else {
-      // Optional: Fehlermeldung anzeigen
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte mindestens einen Spielernamen eingeben!')),
-      );
+      // Fallback, falls alle Felder leer gelassen wurden (sollte durch obige Logik abgedeckt sein)
+      widget.onStartGame(['Spieler 1']);
     }
   }
 
@@ -95,7 +104,7 @@ class _PlayerEntryScreenState extends State<PlayerEntryScreen> {
         borderSide: const BorderSide(color: Colors.black, width: 3), // Dickerer Rand bei Fokus
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      hintStyle: TextStyle(color: Colors.grey[600]),
+      hintStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.normal), // Hint-Stil angepasst
       counterText: '', // Versteckt den Zeichenzähler
     );
 
@@ -144,10 +153,12 @@ class _PlayerEntryScreenState extends State<PlayerEntryScreen> {
                               controller: _controllers[index],
                               focusNode: _focusNodes[index], // Fokus-Node zuweisen
                               decoration: inputDecoration.copyWith(
-                                // hintText: 'Spieler ${index + 1}',
+                                // ÄNDERUNG: hintText wird jetzt hier gesetzt
+                                hintText: 'Spieler ${index + 1}',
                               ),
                               style: const TextStyle(
                                   color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+                              cursorColor: Colors.black, // Sorgt für einen sichtbaren Cursor
                               textCapitalization: TextCapitalization.words,
                               maxLength: 20, // Maximale Namenslänge
                               onSubmitted: (_) { // Bei Enter zum nächsten Feld springen
@@ -218,3 +229,4 @@ class _PlayerEntryScreenState extends State<PlayerEntryScreen> {
     );
   }
 }
+
